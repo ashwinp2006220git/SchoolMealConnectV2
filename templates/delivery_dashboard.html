@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+{% block title %}Delivery Dashboard — SchoolMeal Connect{% endblock %}
+{% block content %}
+<div class="page">
+  <div class="page-header">
+    <h1>🚚 Delivery Dashboard</h1>
+    <p>View available jobs and manage your deliveries — {{ user.name }}</p>
+  </div>
+
+  <div class="stats-row">
+    <div class="stat-card purple">
+      <div class="stat-value">{{ available|length }}</div>
+      <div class="stat-label">Jobs Available</div>
+    </div>
+    <div class="stat-card leaf">
+      <div class="stat-value">{{ my_jobs|selectattr('status','equalto','out_for_delivery')|list|length }}</div>
+      <div class="stat-label">Active Deliveries</div>
+    </div>
+    <div class="stat-card sky">
+      <div class="stat-value">{{ my_jobs|selectattr('status','equalto','delivered')|list|length }}</div>
+      <div class="stat-label">Completed</div>
+    </div>
+  </div>
+
+  <!-- Available Orders -->
+  <div class="card" style="margin-bottom:1.4rem">
+    <div class="card-title"><span class="icon">📦</span> Available for Pickup</div>
+    {% if available %}
+    <div style="display:grid;gap:.8rem">
+      {% for o in available %}
+      <div style="border:1.5px solid var(--border);border-radius:10px;padding:1rem;display:flex;align-items:center;gap:1rem;flex-wrap:wrap">
+        <div style="flex:1;min-width:180px">
+          <div style="font-weight:700;font-size:.95rem">Order #{{ o.id }}</div>
+          <div style="font-size:.82rem;color:var(--ink-mid);margin-top:.2rem">Placed by: {{ o.staff_name }}</div>
+          <div style="font-size:.82rem;color:var(--ink-soft)">{{ o.created_at[:16] }}</div>
+        </div>
+        <div style="text-align:right">
+          <div style="font-family:'Sora',sans-serif;font-size:1.1rem;font-weight:700;color:var(--saffron)">₹{{ "%.2f"|format(o.total_amount) }}</div>
+          <div style="font-size:.78rem;color:var(--ink-soft)">Order value</div>
+        </div>
+        <div style="display:flex;gap:.5rem">
+          <a href="/order/{{ o.id }}" class="btn btn-ghost btn-sm">View Details</a>
+          <form method="POST" action="/order/accept/{{ o.id }}">
+            <button type="submit" class="btn btn-primary btn-sm">Accept Job</button>
+          </form>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty">
+      <div class="empty-icon">🎉</div>
+      <p>No orders waiting for pickup right now. Check back soon!</p>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- My Jobs -->
+  <div class="card">
+    <div class="card-title"><span class="icon">🗺️</span> My Deliveries</div>
+    {% if my_jobs %}
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Order #</th><th>School Contact</th><th>Amount</th><th>Accepted At</th><th>Status</th><th>Action</th></tr></thead>
+        <tbody>
+        {% for o in my_jobs %}
+          <tr>
+            <td><strong>#{{ o.id }}</strong></td>
+            <td>{{ o.staff_name }}</td>
+            <td><strong>₹{{ "%.2f"|format(o.total_amount) }}</strong></td>
+            <td style="font-size:.82rem;color:var(--ink-mid)">{{ o.created_at[:16] }}</td>
+            <td><span class="badge badge-{{ o.status }}">{{ o.status.replace('_',' ').title() }}</span></td>
+            <td>
+              <a href="/order/{{ o.id }}" class="btn btn-ghost btn-sm">Details</a>
+              {% if o.status == 'out_for_delivery' %}
+              <form method="POST" action="/order/deliver/{{ o.id }}" style="display:inline">
+                <button type="submit" class="btn btn-primary btn-sm">Mark Delivered</button>
+              </form>
+              {% endif %}
+            </td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="empty"><div class="empty-icon">🚚</div><p>No deliveries yet. Accept a job above to get started.</p></div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% block title %}Order #{{ order.id }} — SchoolMeal Connect{% endblock %}
+{% block content %}
+<div class="page" style="max-width:680px">
+  <div style="margin-bottom:1.2rem">
+    <a href="{{ url_for('dashboard') }}" class="btn btn-ghost btn-sm">← Back to Dashboard</a>
+  </div>
+  <div class="card">
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:1.4rem;flex-wrap:wrap;gap:.8rem">
+      <div>
+        <div style="font-family:'Sora',sans-serif;font-size:1.3rem;font-weight:700;color:var(--ink)">Order #{{ order.id }}</div>
+        <div style="font-size:.85rem;color:var(--ink-mid);margin-top:.2rem">Placed by {{ order.staff_name }} on {{ order.created_at[:16] }}</div>
+      </div>
+      <span class="badge badge-{{ order.status }}" style="font-size:.85rem;padding:.35rem .9rem">{{ order.status.replace('_',' ').title() }}</span>
+    </div>
+
+    {% if order.notes %}
+    <div style="background:#FFF8E1;border:1px solid #FFECB3;border-radius:8px;padding:.8rem 1rem;margin-bottom:1.2rem;font-size:.87rem;color:#795548">
+      📝 <strong>Notes:</strong> {{ order.notes }}
+    </div>
+    {% endif %}
+
+    <div class="section-label">Items Ordered</div>
+    <div class="table-wrap" style="margin-bottom:1.2rem">
+      <table>
+        <thead><tr><th>Item</th><th>Qty</th><th>Unit Price</th><th>Subtotal</th></tr></thead>
+        <tbody>
+        {% for item in items %}
+          <tr>
+            <td><strong>{{ item.item_name }}</strong></td>
+            <td>{{ item.quantity }} {{ item.unit }}</td>
+            <td>₹{{ "%.2f"|format(item.unit_price) }}</td>
+            <td><strong>₹{{ "%.2f"|format(item.quantity * item.unit_price) }}</strong></td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <div style="text-align:right;padding-top:.5rem;border-top:2px solid var(--border)">
+      <span style="font-size:.85rem;color:var(--ink-mid)">Total Amount: </span>
+      <span style="font-family:'Sora',sans-serif;font-size:1.3rem;font-weight:700;color:var(--saffron)">₹{{ "%.2f"|format(order.total_amount) }}</span>
+    </div>
+  </div>
+
+  <!-- Status progression -->
+  <div class="card" style="margin-top:1rem">
+    <div class="card-title"><span class="icon">📍</span> Order Status</div>
+    <div style="display:flex;align-items:center;gap:0;margin-top:.5rem">
+      {% set statuses = ['pending','confirmed','out_for_delivery','delivered'] %}
+      {% set idx = statuses.index(order.status) if order.status in statuses else 0 %}
+      {% for s in statuses %}
+      {% set i = loop.index0 %}
+      <div style="flex:1;text-align:center">
+        <div style="width:28px;height:28px;border-radius:50%;margin:0 auto;display:flex;align-items:center;justify-content:center;font-size:.8rem;font-weight:700;
+          background:{% if i <= idx %}var(--leaf){% else %}var(--border){% endif %};
+          color:{% if i <= idx %}#fff{% else %}var(--ink-soft){% endif %}">
+          {% if i < idx %}✓{% else %}{{ i+1 }}{% endif %}
+        </div>
+        <div style="font-size:.72rem;color:{% if i==idx %}var(--leaf){% else %}var(--ink-soft){% endif %};font-weight:{% if i==idx %}700{% else %}400{% endif %};margin-top:.3rem">
+          {{ s.replace('_',' ').title() }}
+        </div>
+      </div>
+      {% if not loop.last %}
+      <div style="flex:0 0 20px;height:2px;background:{% if i < idx %}var(--leaf){% else %}var(--border){% endif %};margin-bottom:18px"></div>
+      {% endif %}
+      {% endfor %}
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,176 @@
+{% extends "base.html" %}
+{% block title %}Merchant Dashboard — SchoolMeal Connect{% endblock %}
+{% block extra_head %}
+<style>
+.stock-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:.9rem;margin-top:.8rem}
+.stock-card{background:var(--card);border:1.5px solid var(--border);border-radius:10px;padding:1rem}
+.stock-low{border-color:#FFCC80;background:#FFFBF0}
+.stock-zero{border-color:#FFCDD2;background:#FFF5F5;opacity:.7}
+.qty-bar{height:4px;background:var(--border);border-radius:2px;margin:.5rem 0}
+.qty-fill{height:100%;border-radius:2px;background:var(--leaf);transition:width .3s}
+.qty-fill.low{background:var(--turmeric)}
+.qty-fill.empty{background:#EF5350}
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:200;display:flex;align-items:center;justify-content:center}
+.modal{background:var(--card);border-radius:14px;padding:1.8rem;width:100%;max-width:440px;box-shadow:0 8px 40px rgba(0,0,0,.2)}
+</style>
+{% endblock %}
+{% block content %}
+<div class="page">
+  <div class="page-header" style="display:flex;align-items:flex-start;justify-content:space-between">
+    <div>
+      <h1>🥬 My Stock</h1>
+      <p>Manage inventory and view incoming orders — {{ user.name }}</p>
+    </div>
+    <button class="btn btn-primary" onclick="showAddModal()">+ Add Item</button>
+  </div>
+
+  <!-- My Inventory -->
+  <div class="card" style="margin-bottom:1.5rem">
+    <div class="card-title"><span class="icon">📦</span> Current Stock ({{ my_items|length }} items)</div>
+    {% if my_items %}
+    <div class="stock-grid">
+      {% for item in my_items %}
+      {% set pct = [[(item.quantity / 50 * 100)|int, 0]|max, 100]|min %}
+      <div class="stock-card {% if item.quantity == 0 %}stock-zero{% elif item.quantity < 5 %}stock-low{% endif %}">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:.3rem">
+          <span class="chip chip-{{ item.category }}">{{ item.category }}</span>
+          {% if item.quantity == 0 %}<span style="font-size:.75rem;color:#EF5350;font-weight:600">OUT</span>
+          {% elif item.quantity < 5 %}<span style="font-size:.75rem;color:var(--turmeric);font-weight:600">LOW</span>
+          {% endif %}
+        </div>
+        <div style="font-weight:700;font-size:.95rem;color:var(--ink);margin-bottom:.15rem">{{ item.item_name }}</div>
+        <div style="font-size:.8rem;color:var(--ink-mid)">{{ item.quantity }} {{ item.unit }} available</div>
+        <div class="qty-bar"><div class="qty-fill {% if item.quantity==0 %}empty{% elif pct<20 %}low{% endif %}" style="width:{{ pct }}%"></div></div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-top:.4rem">
+          <span style="font-family:'Sora',sans-serif;font-size:1rem;font-weight:700;color:var(--saffron)">₹{{ "%.2f"|format(item.price_per_unit) }}<span style="font-size:.75rem;font-weight:400;color:var(--ink-mid)">/{{ item.unit }}</span></span>
+          <button class="btn btn-ghost btn-sm" onclick="showEditModal({{ item.id }}, '{{ item.item_name|e }}', {{ item.quantity }}, {{ item.price_per_unit }})">Edit</button>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty"><div class="empty-icon">📦</div><p>No items yet. Add your first item to start receiving orders.</p></div>
+    {% endif %}
+  </div>
+
+  <!-- Incoming Orders -->
+  <div class="card">
+    <div class="card-title"><span class="icon">🔔</span> Incoming Order Requests</div>
+    {% if my_orders %}
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Order #</th><th>Item Ordered</th><th>Qty</th><th>School Staff</th><th>Date</th><th>Status</th></tr></thead>
+        <tbody>
+        {% for o in my_orders %}
+          <tr>
+            <td><strong>#{{ o.order_id }}</strong></td>
+            <td>{{ o.item_name }}</td>
+            <td>{{ o.quantity }} {{ o.unit }}</td>
+            <td>{{ o.staff_name }}</td>
+            <td style="font-size:.82rem;color:var(--ink-mid)">{{ o.created_at[:16] }}</td>
+            <td><span class="badge badge-{{ o.status }}">{{ o.status.replace('_',' ').title() }}</span></td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="empty"><div class="empty-icon">🔔</div><p>No order requests yet. Keep your stock updated so schools can find you.</p></div>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Add Modal -->
+<div id="addModal" class="modal-overlay" style="display:none" onclick="if(event.target===this)closeModals()">
+  <div class="modal">
+    <h3 style="font-family:'Sora',sans-serif;font-size:1.1rem;margin-bottom:1.2rem">+ Add New Item</h3>
+    <form method="POST" action="/inventory/add">
+      <div class="form-row">
+        <div class="form-group">
+          <label>Item Name</label>
+          <input type="text" name="item_name" placeholder="e.g. Tomatoes" required>
+        </div>
+        <div class="form-group">
+          <label>Category</label>
+          <select name="category" required>
+            <option value="Vegetables">Vegetables</option>
+            <option value="Grains">Grains</option>
+            <option value="Spices">Spices</option>
+            <option value="Oils">Oils</option>
+            <option value="Other">Other</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Unit</label>
+          <select name="unit" required>
+            <option value="kg">kg</option>
+            <option value="g">grams</option>
+            <option value="L">Litres</option>
+            <option value="piece">piece</option>
+            <option value="bundle">bundle</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Available Qty</label>
+          <input type="number" name="quantity" min="0" step="0.5" placeholder="e.g. 50" required>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Price per Unit (₹)</label>
+        <input type="number" name="price" min="0" step="0.5" placeholder="e.g. 28.50" required>
+      </div>
+      <div style="display:flex;gap:.7rem;margin-top:.5rem">
+        <button type="submit" class="btn btn-primary" style="flex:1">Add to Stock</button>
+        <button type="button" class="btn btn-ghost" onclick="closeModals()">Cancel</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Edit Modal -->
+<div id="editModal" class="modal-overlay" style="display:none" onclick="if(event.target===this)closeModals()">
+  <div class="modal">
+    <h3 style="font-family:'Sora',sans-serif;font-size:1.1rem;margin-bottom:.3rem" id="editTitle">Update Stock</h3>
+    <p style="font-size:.83rem;color:var(--ink-soft);margin-bottom:1.2rem" id="editSub"></p>
+    <form method="POST" action="/inventory/update">
+      <input type="hidden" name="item_id" id="editId">
+      <div class="form-row">
+        <div class="form-group">
+          <label>Available Qty</label>
+          <input type="number" name="quantity" id="editQty" min="0" step="0.5" required>
+        </div>
+        <div class="form-group">
+          <label>Price per Unit (₹)</label>
+          <input type="number" name="price" id="editPrice" min="0" step="0.5" required>
+        </div>
+      </div>
+      <div style="display:flex;gap:.7rem;margin-top:.5rem">
+        <button type="submit" class="btn btn-primary" style="flex:1">Save Changes</button>
+        <button type="button" class="btn btn-ghost" onclick="closeModals()">Cancel</button>
+      </div>
+    </form>
+    <form method="POST" id="deleteForm" style="margin-top:.7rem">
+      <button type="submit" class="btn btn-danger btn-full btn-sm">Remove from stock</button>
+    </form>
+  </div>
+</div>
+
+<script>
+function showAddModal(){ document.getElementById('addModal').style.display='flex' }
+function showEditModal(id,name,qty,price){
+  document.getElementById('editId').value=id;
+  document.getElementById('editTitle').textContent='Update: '+name;
+  document.getElementById('editSub').textContent='Adjust current quantity and price';
+  document.getElementById('editQty').value=qty;
+  document.getElementById('editPrice').value=price;
+  document.getElementById('deleteForm').action='/inventory/delete/'+id;
+  document.getElementById('editModal').style.display='flex';
+}
+function closeModals(){
+  document.getElementById('addModal').style.display='none';
+  document.getElementById('editModal').style.display='none';
+}
+</script>
+{% endblock %}

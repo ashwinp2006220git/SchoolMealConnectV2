@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SchoolMeal Connect — Sign In</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=Sora:wght@600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{--saffron:#E8610A;--turmeric:#F5A623;--leaf:#2D7A4F;--ink:#1A1A2E;--bg:#F7F6F2;--card:#fff;--border:#E2E0DA}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'DM Sans',sans-serif;background:var(--bg);min-height:100vh;display:flex;-webkit-font-smoothing:antialiased}
+.split{display:grid;grid-template-columns:1fr 1fr;min-height:100vh;width:100%}
+@media(max-width:700px){.split{grid-template-columns:1fr}}
+.hero{background:var(--ink);display:flex;flex-direction:column;justify-content:center;padding:3rem;position:relative;overflow:hidden}
+@media(max-width:700px){.hero{display:none}}
+.hero-bg{position:absolute;inset:0;opacity:.07;background:repeating-linear-gradient(45deg,#fff 0,#fff 1px,transparent 0,transparent 50%) 0/20px 20px}
+.hero-content{position:relative}
+.hero-icon{font-size:3rem;margin-bottom:1.5rem}
+.hero-title{font-family:'Sora',sans-serif;font-size:2.2rem;font-weight:800;color:#fff;line-height:1.2;margin-bottom:1rem}
+.hero-title span{color:var(--turmeric)}
+.hero-sub{color:rgba(255,255,255,.6);font-size:.95rem;line-height:1.6;margin-bottom:2rem}
+.role-pills{display:flex;flex-wrap:wrap;gap:.5rem}
+.pill{background:rgba(255,255,255,.1);color:rgba(255,255,255,.8);padding:.35rem .85rem;border-radius:20px;font-size:.8rem;font-weight:500}
+.pill-orange{background:rgba(232,97,10,.3);color:#FFB680}
+.pill-green{background:rgba(45,122,79,.3);color:#90EEB6}
+.pill-blue{background:rgba(27,108,168,.3);color:#90CAF9}
+.pill-purple{background:rgba(123,94,167,.3);color:#CE93D8}
+.form-side{display:flex;flex-direction:column;justify-content:center;padding:3rem}
+.brand-mobile{display:none;margin-bottom:2rem}
+@media(max-width:700px){.brand-mobile{display:flex;align-items:center;gap:.6rem}}
+.brand-icon{width:36px;height:36px;background:var(--saffron);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:1.2rem}
+.brand-name{font-family:'Sora',sans-serif;font-size:1.2rem;font-weight:700;color:var(--ink)}
+.form-wrap{max-width:380px;width:100%}
+.form-title{font-family:'Sora',sans-serif;font-size:1.5rem;font-weight:700;color:var(--ink);margin-bottom:.35rem}
+.form-sub{font-size:.88rem;color:#7777A0;margin-bottom:1.8rem}
+.form-group{margin-bottom:1rem}
+label{display:block;font-size:.82rem;font-weight:600;color:#4A4A6A;margin-bottom:.35rem}
+input{width:100%;padding:.7rem 1rem;border:1.5px solid var(--border);border-radius:9px;font-family:inherit;font-size:.92rem;color:var(--ink);background:var(--card);transition:border-color .2s,box-shadow .2s}
+input:focus{outline:none;border-color:var(--leaf);box-shadow:0 0 0 3px rgba(45,122,79,.12)}
+.btn-login{width:100%;padding:.8rem;background:var(--leaf);color:#fff;border:none;border-radius:9px;font-family:inherit;font-size:.95rem;font-weight:600;cursor:pointer;margin-top:.5rem;transition:all .2s}
+.btn-login:hover{background:#246040;box-shadow:0 4px 14px rgba(45,122,79,.3)}
+.divider{display:flex;align-items:center;gap:1rem;margin:1.2rem 0;color:#B0B0C8;font-size:.82rem}
+.divider::before,.divider::after{content:'';flex:1;height:1px;background:var(--border)}
+.btn-register{width:100%;padding:.75rem;background:transparent;color:var(--leaf);border:1.5px solid var(--leaf);border-radius:9px;font-family:inherit;font-size:.9rem;font-weight:600;cursor:pointer;text-decoration:none;display:block;text-align:center;transition:all .2s}
+.btn-register:hover{background:rgba(45,122,79,.07)}
+.demo-box{background:#FFFBF0;border:1px solid #FFDF8A;border-radius:9px;padding:1rem;margin-top:1.2rem}
+.demo-title{font-size:.78rem;font-weight:700;color:#B45309;text-transform:uppercase;letter-spacing:.5px;margin-bottom:.5rem}
+.demo-accounts{display:grid;gap:.35rem}
+.demo-account{display:flex;justify-content:space-between;font-size:.8rem;color:#78350F}
+.demo-account code{background:#FDE68A;padding:.1rem .4rem;border-radius:4px;font-size:.75rem}
+.flash-msg{background:#E8F5E9;border:1px solid #A5D6A7;color:#1B5E20;padding:.7rem 1rem;border-radius:8px;margin-bottom:1rem;font-size:.87rem}
+</style>
+</head>
+<body>
+<div class="split">
+  <div class="hero">
+    <div class="hero-bg"></div>
+    <div class="hero-content">
+      <div class="hero-icon">🍱</div>
+      <h1 class="hero-title">SchoolMeal<br><span>Connect</span></h1>
+      <p class="hero-sub">The digital procurement portal for government school Midday Meal Programmes — connecting schools, merchants, and delivery services in one shared space.</p>
+      <div class="role-pills">
+        <span class="pill pill-orange">🏫 Principal Dashboard</span>
+        <span class="pill pill-green">🛒 School Staff Orders</span>
+        <span class="pill pill-blue">🥬 Merchant Stock</span>
+        <span class="pill pill-purple">🚚 Delivery Tracking</span>
+      </div>
+    </div>
+  </div>
+  <div class="form-side">
+    <div class="form-wrap">
+      <div class="brand-mobile">
+        <div class="brand-icon">🍱</div>
+        <span class="brand-name">SchoolMeal Connect</span>
+      </div>
+      {% with messages = get_flashed_messages() %}
+        {% if messages %}{% for m in messages %}<div class="flash-msg">{{ m }}</div>{% endfor %}{% endif %}
+      {% endwith %}
+      <h2 class="form-title">Welcome back</h2>
+      <p class="form-sub">Sign in to your account to continue</p>
+      <form method="POST" action="/login">
+        <div class="form-group">
+          <label for="username">Username</label>
+          <input type="text" id="username" name="username" placeholder="Enter your username" required autocomplete="username">
+        </div>
+        <div class="form-group">
+          <label for="password">Password</label>
+          <input type="password" id="password" name="password" placeholder="Enter your password" required autocomplete="current-password">
+        </div>
+        <button type="submit" class="btn-login">Sign in →</button>
+      </form>
+      <div class="divider">or</div>
+      <a href="/register" class="btn-register">Create a new account</a>
+      <div class="demo-box">
+        <div class="demo-title">⚡ Demo Accounts (password: demo123)</div>
+        <div class="demo-accounts">
+          <div class="demo-account"><span>🏫 Principal</span><code>principal</code></div>
+          <div class="demo-account"><span>📋 School Staff</span><code>staff1</code></div>
+          <div class="demo-account"><span>🥬 Merchant</span><code>merchant1</code> or <code>merchant2</code></div>
+          <div class="demo-account"><span>🚚 Delivery</span><code>delivery1</code></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</body>
+</html>

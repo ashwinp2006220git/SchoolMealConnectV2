@@ -1,0 +1,265 @@
+{% extends "base.html" %}
+{% block title %}Staff Dashboard — SchoolMeal Connect{% endblock %}
+{% block extra_head %}
+<style>
+.item-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:.9rem;margin-top:.8rem}
+.item-card{background:var(--card);border:1.5px solid var(--border);border-radius:10px;padding:1rem;transition:border-color .2s,box-shadow .2s;cursor:pointer}
+.item-card:hover{border-color:var(--leaf);box-shadow:0 2px 12px rgba(45,122,79,.12)}
+.item-card.in-cart{border-color:var(--leaf);background:var(--leaf-lt)}
+.item-name{font-weight:600;font-size:.92rem;color:var(--ink);margin-bottom:.25rem}
+.item-merchant{font-size:.78rem;color:var(--ink-soft);margin-bottom:.5rem}
+.item-price{font-family:'Sora',sans-serif;font-size:1.1rem;font-weight:700;color:var(--saffron)}
+.item-unit{font-size:.78rem;color:var(--ink-mid)}
+.item-stock{font-size:.78rem;color:var(--leaf);margin-top:.3rem}
+.cart-panel{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:1.4rem;position:sticky;top:80px}
+.cart-item-row{display:flex;align-items:center;gap:.5rem;padding:.5rem 0;border-bottom:1px solid var(--border);font-size:.86rem}
+.cart-item-row:last-child{border-bottom:none}
+.qty-input{width:60px;padding:.3rem .5rem;border:1.5px solid var(--border);border-radius:6px;font-size:.85rem;text-align:center}
+.ai-box{background:linear-gradient(135deg,#EBF4FB 0%,#E8F5E9 100%);border:1px solid #B3D9F7;border-radius:10px;padding:1.2rem;margin-bottom:1.2rem}
+.ai-title{font-size:.82rem;font-weight:700;color:var(--sky);text-transform:uppercase;letter-spacing:.5px;margin-bottom:.6rem;display:flex;align-items:center;gap:.4rem}
+.ai-chips{display:flex;flex-wrap:wrap;gap:.4rem}
+.ai-chip{background:#fff;border:1px solid #B3D9F7;border-radius:6px;padding:.3rem .7rem;font-size:.79rem;cursor:pointer;transition:all .2s;color:var(--ink-mid)}
+.ai-chip:hover{background:var(--sky);color:#fff;border-color:var(--sky)}
+.filter-bar{display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:1rem}
+.filter-btn{padding:.35rem .8rem;border-radius:20px;font-size:.8rem;font-weight:600;cursor:pointer;border:1.5px solid var(--border);background:var(--card);color:var(--ink-mid);transition:all .2s}
+.filter-btn.active,.filter-btn:hover{background:var(--ink);color:#fff;border-color:var(--ink)}
+</style>
+{% endblock %}
+{% block content %}
+<div class="page">
+  <div class="page-header">
+    <h1>🛒 Place Today's Order</h1>
+    <p>Browse available stock and build your procurement list — {{ user.name }}</p>
+  </div>
+
+  <div style="display:grid;grid-template-columns:1fr 320px;gap:1.5rem;align-items:start">
+    <!-- LEFT: items + AI -->
+    <div>
+      <!-- AI Suggestions -->
+      <div class="ai-box">
+        <div class="ai-title">🤖 AI Demand Suggestions</div>
+        <div style="display:flex;align-items:center;gap:.8rem;margin-bottom:.7rem">
+          <label style="font-size:.83rem;font-weight:600;color:var(--ink-mid)">Today's attendance:</label>
+          <input type="number" id="attendanceInput" value="200" min="1" max="2000" style="width:90px;padding:.35rem .6rem;border-radius:6px;border:1.5px solid #B3D9F7;font-size:.88rem">
+          <button class="btn btn-sky btn-sm" onclick="getAISuggestions()">Get Suggestions</button>
+        </div>
+        <div id="aiChips" class="ai-chips">
+          {% if ai_suggestions %}
+            {% for s in ai_suggestions %}
+            <span class="ai-chip" onclick="addFromAI('{{ s.item_name }}', {{ s.suggested_qty }}, '{{ s.unit }}')">
+              <strong>{{ s.item_name }}</strong> — {{ s.suggested_qty }} {{ s.unit }}
+            </span>
+            {% endfor %}
+          {% else %}
+            <span style="font-size:.83rem;color:var(--ink-soft)">Enter attendance and click "Get Suggestions" to see AI-recommended quantities</span>
+          {% endif %}
+        </div>
+      </div>
+
+      <!-- Category Filter -->
+      <div class="filter-bar">
+        <button class="filter-btn active" onclick="filterCat(this,'all')">All Items</button>
+        <button class="filter-btn" onclick="filterCat(this,'Vegetables')">🥬 Vegetables</button>
+        <button class="filter-btn" onclick="filterCat(this,'Grains')">🌾 Grains</button>
+        <button class="filter-btn" onclick="filterCat(this,'Spices')">🌶 Spices</button>
+        <button class="filter-btn" onclick="filterCat(this,'Oils')">🫙 Oils</button>
+      </div>
+
+      <!-- Item Cards -->
+      <div class="item-grid" id="itemGrid">
+        {% if items %}
+          {% for item in items %}
+          <div class="item-card" id="card-{{ item.id }}" data-cat="{{ item.category }}"
+               onclick="toggleItem({{ item.id }}, '{{ item.item_name|e }}', {{ item.price_per_unit }}, '{{ item.unit }}', {{ item.quantity }})">
+            <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:.4rem">
+              <span class="chip chip-{{ item.category }}">{{ item.category }}</span>
+              <span class="item-stock">{{ item.quantity }} {{ item.unit }} left</span>
+            </div>
+            <div class="item-name">{{ item.item_name }}</div>
+            <div class="item-merchant">by {{ item.merchant_name }}</div>
+            <div>
+              <span class="item-price">₹{{ "%.2f"|format(item.price_per_unit) }}</span>
+              <span class="item-unit"> / {{ item.unit }}</span>
+            </div>
+          </div>
+          {% endfor %}
+        {% else %}
+          <div class="empty" style="grid-column:1/-1"><div class="empty-icon">🏪</div><p>No items available right now. Merchants haven't updated their stock yet.</p></div>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- RIGHT: Cart -->
+    <div class="cart-panel">
+      <div class="card-title" style="font-family:'Sora',sans-serif;font-size:1rem;font-weight:700;margin-bottom:1rem">
+        🛒 Order Cart <span id="cartCount" style="background:var(--saffron);color:#fff;padding:.1rem .5rem;border-radius:20px;font-size:.75rem;margin-left:.3rem">0</span>
+      </div>
+      <div id="cartItems">
+        <div class="empty"><div class="empty-icon" style="font-size:1.5rem">🛒</div><p style="font-size:.82rem">Tap items to add to cart</p></div>
+      </div>
+      <div id="cartTotal" style="display:none;border-top:2px solid var(--border);padding-top:.8rem;margin-top:.8rem">
+        <div style="display:flex;justify-content:space-between;font-weight:700;font-size:1rem">
+          <span>Total</span>
+          <span id="totalAmt" style="color:var(--saffron);font-family:'Sora',sans-serif">₹0.00</span>
+        </div>
+      </div>
+      <div class="form-group" style="margin-top:1rem">
+        <label>Notes / Special instructions</label>
+        <textarea id="orderNotes" placeholder="Any special requirements…" rows="2"></textarea>
+      </div>
+      <button class="btn btn-primary btn-full" onclick="placeOrder()" id="placeBtn" disabled>Place Order</button>
+    </div>
+  </div>
+
+  <!-- My Orders -->
+  <div class="card" style="margin-top:1.8rem">
+    <div class="card-title"><span class="icon">📋</span> My Recent Orders</div>
+    {% if my_orders %}
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Order #</th><th>Date</th><th>Amount</th><th>Status</th><th></th></tr></thead>
+        <tbody>
+        {% for o in my_orders %}
+          <tr>
+            <td><strong>#{{ o.id }}</strong></td>
+            <td style="font-size:.83rem;color:var(--ink-mid)">{{ o.created_at[:16] }}</td>
+            <td><strong>₹{{ "%.2f"|format(o.total_amount) }}</strong></td>
+            <td><span class="badge badge-{{ o.status }}">{{ o.status.replace('_',' ').title() }}</span></td>
+            <td>
+              <a href="/order/{{ o.id }}" class="btn btn-ghost btn-sm">View</a>
+              {% if o.status == 'pending' %}
+              <form method="POST" action="/order/confirm/{{ o.id }}" style="display:inline">
+                <button type="submit" class="btn btn-primary btn-sm">Confirm</button>
+              </form>
+              {% endif %}
+            </td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="empty"><div class="empty-icon">📋</div><p>No orders placed yet. Browse items above to get started.</p></div>
+    {% endif %}
+  </div>
+</div>
+
+<script>
+const cart = {};
+const prices = {};
+const units = {};
+
+function toggleItem(id, name, price, unit, stock) {
+  if (cart[id]) {
+    delete cart[id]; delete prices[id]; delete units[id];
+    document.getElementById('card-'+id).classList.remove('in-cart');
+  } else {
+    cart[id] = Math.min(1, stock);
+    prices[id] = price;
+    units[id] = unit;
+    document.getElementById('card-'+id).classList.add('in-cart');
+  }
+  renderCart();
+}
+
+function addFromAI(name, qty, unit) {
+  // Find matching inventory item and add with suggested qty
+  fetch('/api/inventory').then(r=>r.json()).then(items => {
+    const match = items.find(i => i.item_name.toLowerCase().includes(name.toLowerCase()));
+    if (match) {
+      cart[match.id] = qty;
+      prices[match.id] = match.price_per_unit;
+      units[match.id] = match.unit;
+      const el = document.getElementById('card-'+match.id);
+      if(el) el.classList.add('in-cart');
+      renderCart();
+    }
+  });
+}
+
+function renderCart() {
+  const ids = Object.keys(cart);
+  const count = ids.length;
+  document.getElementById('cartCount').textContent = count;
+  document.getElementById('placeBtn').disabled = count === 0;
+
+  if (count === 0) {
+    document.getElementById('cartItems').innerHTML = '<div class="empty"><div class="empty-icon" style="font-size:1.5rem">🛒</div><p style="font-size:.82rem">Tap items to add to cart</p></div>';
+    document.getElementById('cartTotal').style.display = 'none';
+    return;
+  }
+
+  let html = ''; let total = 0;
+  ids.forEach(id => {
+    const qty = parseFloat(cart[id]);
+    const subtotal = qty * prices[id];
+    total += subtotal;
+    html += `<div class="cart-item-row" id="ci-${id}">
+      <div style="flex:1;min-width:0"><div style="font-weight:600;font-size:.83rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" id="cn-${id}">Item #${id}</div>
+      <div style="font-size:.75rem;color:var(--ink-soft)">₹${prices[id].toFixed(2)} / ${units[id]}</div></div>
+      <input class="qty-input" type="number" value="${qty}" min="0.1" step="0.5"
+             onchange="updateQty(${id}, this.value)" style="width:65px">
+      <span style="font-size:.83rem;font-weight:600;color:var(--saffron);min-width:52px;text-align:right">₹${subtotal.toFixed(0)}</span>
+      <button onclick="removeItem(${id})" style="background:none;border:none;cursor:pointer;color:var(--ink-soft);font-size:1rem;padding:0 .2rem">✕</button>
+    </div>`;
+  });
+
+  document.getElementById('cartItems').innerHTML = html;
+  document.getElementById('cartTotal').style.display = 'block';
+  document.getElementById('totalAmt').textContent = '₹'+total.toFixed(2);
+
+  // Fetch names for display
+  fetch('/api/inventory').then(r=>r.json()).then(items=>{
+    items.forEach(item=>{
+      const el = document.getElementById('cn-'+item.id);
+      if(el) el.textContent = item.item_name;
+    });
+  });
+}
+
+function updateQty(id, val) { cart[id] = parseFloat(val) || 0; renderCart(); }
+function removeItem(id) {
+  delete cart[id]; delete prices[id]; delete units[id];
+  const el = document.getElementById('card-'+id);
+  if(el) el.classList.remove('in-cart');
+  renderCart();
+}
+
+function placeOrder() {
+  const cartArr = Object.keys(cart).map(id => ({ id: parseInt(id), qty: cart[id] }));
+  const form = document.createElement('form');
+  form.method = 'POST'; form.action = '/order/place';
+  const cartInput = document.createElement('input');
+  cartInput.type = 'hidden'; cartInput.name = 'cart';
+  cartInput.value = JSON.stringify(cartArr);
+  const notesInput = document.createElement('input');
+  notesInput.type = 'hidden'; notesInput.name = 'notes';
+  notesInput.value = document.getElementById('orderNotes').value;
+  form.appendChild(cartInput); form.appendChild(notesInput);
+  document.body.appendChild(form); form.submit();
+}
+
+function filterCat(btn, cat) {
+  document.querySelectorAll('.filter-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  document.querySelectorAll('.item-card').forEach(card=>{
+    card.style.display = (cat==='all' || card.dataset.cat===cat) ? '' : 'none';
+  });
+}
+
+function getAISuggestions() {
+  const att = parseInt(document.getElementById('attendanceInput').value) || 200;
+  fetch('/ai/suggest', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({attendance: att})
+  }).then(r=>r.json()).then(d=>{
+    const container = document.getElementById('aiChips');
+    container.innerHTML = d.suggestions.map(s=>
+      `<span class="ai-chip" onclick="addFromAI('${s.item}',${s.qty},'${s.unit}')">
+        <strong>${s.item}</strong> — ${s.qty} ${s.unit}
+      </span>`
+    ).join('');
+  });
+}
+</script>
+{% endblock %}
