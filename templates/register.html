@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Register — SchoolMeal Connect</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=Sora:wght@600;700&display=swap" rel="stylesheet">
+<style>
+:root{--leaf:#2D7A4F;--ink:#1A1A2E;--bg:#F7F6F2;--card:#fff;--border:#E2E0DA;--ink-mid:#4A4A6A;--ink-soft:#9898B8}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'DM Sans',sans-serif;background:var(--bg);min-height:100vh;display:flex;align-items:center;justify-content:center;padding:2rem}
+.wrap{background:#fff;border:1px solid var(--border);border-radius:16px;padding:2rem;width:100%;max-width:460px;box-shadow:0 4px 24px rgba(0,0,0,.08)}
+.back{color:var(--ink-soft);font-size:.85rem;text-decoration:none}
+h2{font-family:'Sora',sans-serif;font-size:1.4rem;font-weight:700;color:var(--ink);margin:.8rem 0 .3rem}
+p{color:var(--ink-mid);font-size:.88rem;margin-bottom:1.5rem}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:.8rem}
+.group{margin-bottom:1rem}
+label{display:block;font-size:.82rem;font-weight:600;color:var(--ink-mid);margin-bottom:.35rem}
+input,select{width:100%;padding:.7rem 1rem;border:1.5px solid var(--border);border-radius:9px;font-family:inherit;font-size:.9rem;color:var(--ink);background:#fff;transition:border-color .2s}
+input:focus,select:focus{outline:none;border-color:var(--leaf);box-shadow:0 0 0 3px rgba(45,122,79,.12)}
+.btn{width:100%;padding:.8rem;background:var(--leaf);color:#fff;border:none;border-radius:9px;font-family:inherit;font-size:.95rem;font-weight:600;cursor:pointer;margin-top:.5rem}
+.btn:hover{background:#246040}
+.flash{background:#E8F5E9;border:1px solid #A5D6A7;color:#1B5E20;padding:.7rem 1rem;border-radius:8px;margin-bottom:1rem;font-size:.87rem}
+@media(max-width:480px){.row{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <a href="/" class="back">← Back to sign in</a>
+  <h2>Create Account</h2>
+  <p>Join SchoolMeal Connect</p>
+  {% with messages = get_flashed_messages() %}
+    {% if messages %}{% for m in messages %}<div class="flash">{{ m }}</div>{% endfor %}{% endif %}
+  {% endwith %}
+  <form method="POST" action="/register">
+    <div class="group">
+      <label>Full Name / Organisation Name</label>
+      <input type="text" name="name" placeholder="e.g. Mrs. Kamala Devi or Annamalai Vegetables" required>
+    </div>
+    <div class="row">
+      <div class="group">
+        <label>Username</label>
+        <input type="text" name="username" placeholder="Choose a username" required>
+      </div>
+      <div class="group">
+        <label>Phone</label>
+        <input type="tel" name="phone" placeholder="Mobile number">
+      </div>
+    </div>
+    <div class="group">
+      <label>Role</label>
+      <select name="role" required>
+        <option value="">Select your role…</option>
+        <option value="principal">🏫 Principal / Headmistress</option>
+        <option value="school_staff">📋 School Staff (orders food)</option>
+        <option value="merchant">🥬 Merchant (supplies food items)</option>
+        <option value="delivery">🚚 Delivery Service Provider</option>
+      </select>
+    </div>
+    <div class="row">
+      <div class="group">
+        <label>Password</label>
+        <input type="password" name="password" placeholder="Create password" required>
+      </div>
+      <div class="group">
+        <label>Confirm Password</label>
+        <input type="password" name="confirm" placeholder="Re-enter password">
+      </div>
+    </div>
+    <button type="submit" class="btn">Create Account →</button>
+  </form>
+</div>
+</body>
+</html>
