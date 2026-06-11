@@ -56,13 +56,12 @@
         </div>
       </div>
 
-      <!-- Category Filter -->
+      <!-- Category Filter — built from the normalised categories table -->
       <div class="filter-bar">
         <button class="filter-btn active" onclick="filterCat(this,'all')">All Items</button>
-        <button class="filter-btn" onclick="filterCat(this,'Vegetables')">🥬 Vegetables</button>
-        <button class="filter-btn" onclick="filterCat(this,'Grains')">🌾 Grains</button>
-        <button class="filter-btn" onclick="filterCat(this,'Spices')">🌶 Spices</button>
-        <button class="filter-btn" onclick="filterCat(this,'Oils')">🫙 Oils</button>
+        {% for cat in categories %}
+        <button class="filter-btn" onclick="filterCat(this,'{{ cat.name }}')">{{ cat.icon }} {{ cat.name }}</button>
+        {% endfor %}
       </div>
 
       <!-- Item Cards -->
@@ -72,7 +71,7 @@
           <div class="item-card" id="card-{{ item.id }}" data-cat="{{ item.category }}"
                onclick="toggleItem({{ item.id }}, '{{ item.item_name|e }}', {{ item.price_per_unit }}, '{{ item.unit }}', {{ item.quantity }})">
             <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:.4rem">
-              <span class="chip chip-{{ item.category }}">{{ item.category }}</span>
+              <span class="chip chip-{{ item.category }}">{{ item.category_icon }} {{ item.category }}</span>
               <span class="item-stock">{{ item.quantity }} {{ item.unit }} left</span>
             </div>
             <div class="item-name">{{ item.item_name }}</div>
@@ -148,7 +147,6 @@
 const cart = {};
 const prices = {};
 const units = {};
-
 const stockLimits = {};
 
 function toggleItem(id, name, price, unit, stock) {
@@ -215,7 +213,6 @@ function renderCart() {
   document.getElementById('cartTotal').style.display = 'block';
   document.getElementById('totalAmt').textContent = '₹'+total.toFixed(2);
 
-  // Fetch names for display
   fetch('/api/inventory').then(r=>r.json()).then(items=>{
     items.forEach(item=>{
       const el = document.getElementById('cn-'+item.id);
@@ -228,8 +225,7 @@ function updateQty(id, val, maxStock) {
   let qty = parseFloat(val) || 0;
   if (qty > maxStock) {
     qty = maxStock;
-    const inputs = document.querySelectorAll(`#ci-${id} .qty-input`);
-    inputs.forEach(i => i.value = maxStock);
+    document.querySelectorAll(`#ci-${id} .qty-input`).forEach(i => i.value = maxStock);
     alert(`Only ${maxStock} ${units[id]} available from this merchant.`);
   }
   cart[id] = qty;

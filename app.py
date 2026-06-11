@@ -22,6 +22,12 @@ def require_role(*roles):
         return redirect(url_for('index'))
     return None
 
+# ── helpers ────────────────────────────────────────────────────────────────────
+
+def get_categories(db):
+    """Return all categories as a list of dicts."""
+    return [dict(r) for r in db.execute('SELECT * FROM categories ORDER BY name').fetchall()]
+
 # ─── Auth ──────────────────────────────────────────────────────────────────────
 
 @app.route('/')
@@ -65,10 +71,16 @@ def register():
         if db.execute('SELECT id FROM users WHERE username=?', (username,)).fetchone():
             flash('Username already taken.')
             return redirect(url_for('register'))
-        db.execute(
+        user_id = db.execute(
             'INSERT INTO users (username, password_hash, role, name, phone) VALUES (?,?,?,?,?)',
             (username, hash_password(password), role, name, phone)
-        )
+        ).lastrowid
+        # Auto-create merchant profile row for merchant accounts
+        if role == 'merchant':
+            db.execute(
+                'INSERT INTO merchants (user_id, business_name) VALUES (?,?)',
+                (user_id, name)
+            )
         db.commit()
         flash('Account created! Please log in.')
         return redirect(url_for('index'))
@@ -98,25 +110,31 @@ def dashboard():
 # ─── Admin dashboard ───────────────────────────────────────────────────────────
 
 def _admin_dashboard(db, user):
-    users      = db.execute('SELECT * FROM users ORDER BY role, name').fetchall()
-    orders     = db.execute('''
+    users = db.execute('SELECT * FROM users ORDER BY role, name').fetchall()
+    orders = db.execute('''
         SELECT o.*, u.name AS staff_name FROM orders o
         JOIN users u ON o.placed_by = u.id
         ORDER BY o.created_at DESC
     ''').fetchall()
-    inventory  = db.execute('''
-        SELECT i.*, u.name AS merchant_name FROM inventory i
+    # Inventory joined with category name via categories table
+    inventory = db.execute('''
+        SELECT i.*, c.name AS category, c.icon AS category_icon,
+               u.name AS merchant_name
+        FROM inventory i
+        JOIN categories c ON i.category_id = c.id
         JOIN users u ON i.merchant_id = u.id
-        ORDER BY u.name, i.category, i.item_name
+        ORDER BY u.name, c.name, i.item_name
     ''').fetchall()
     stats = {
-        'total_users':   db.execute('SELECT COUNT(*) as c FROM users').fetchone()['c'],
-        'total_orders':  db.execute('SELECT COUNT(*) as c FROM orders').fetchone()['c'],
-        'total_spend':   db.execute('SELECT COALESCE(SUM(total_amount),0) as t FROM orders').fetchone()['t'],
-        'active_items':  db.execute('SELECT COUNT(*) as c FROM inventory WHERE quantity>0').fetchone()['c'],
+        'total_users':  db.execute('SELECT COUNT(*) as c FROM users').fetchone()['c'],
+        'total_orders': db.execute('SELECT COUNT(*) as c FROM orders').fetchone()['c'],
+        'total_spend':  db.execute('SELECT COALESCE(SUM(total_amount),0) as t FROM orders').fetchone()['t'],
+        'active_items': db.execute('SELECT COUNT(*) as c FROM inventory WHERE quantity>0').fetchone()['c'],
     }
+    categories = get_categories(db)
     return render_template('admin_dashboard.html',
-        user=user, users=users, orders=orders, inventory=inventory, stats=stats)
+        user=user, users=users, orders=orders, inventory=inventory,
+        stats=stats, categories=categories)
 
 # ─── Admin: user management ────────────────────────────────────────────────────
 
@@ -126,15 +144,21 @@ def admin_user_add():
     if guard: return guard
     db = get_db()
     username = request.form['username'].strip()
+    role = request.form['role']
+    name = request.form['name'].strip()
     if db.execute('SELECT id FROM users WHERE username=?', (username,)).fetchone():
         flash('Username already taken.')
         return redirect(url_for('dashboard'))
-    db.execute(
+    user_id = db.execute(
         'INSERT INTO users (username, password_hash, role, name, phone) VALUES (?,?,?,?,?)',
         (username, hash_password(request.form['password']),
-         request.form['role'], request.form['name'].strip(),
-         request.form.get('phone', '').strip())
-    )
+         role, name, request.form.get('phone', '').strip())
+    ).lastrowid
+    if role == 'merchant':
+        db.execute(
+            'INSERT INTO merchants (user_id, business_name) VALUES (?,?)',
+            (user_id, name)
+        )
     db.commit()
     flash(f"User '{username}' created.")
     return redirect(url_for('dashboard'))
@@ -163,8 +187,8 @@ def admin_user_delete(uid):
         flash("You cannot delete your own account.")
         return redirect(url_for('dashboard'))
     db = get_db()
-    # Reassign or nullify references before deleting
     db.execute('DELETE FROM inventory WHERE merchant_id=?', (uid,))
+    db.execute('DELETE FROM merchants WHERE user_id=?', (uid,))
     db.execute('UPDATE orders SET delivery_id=NULL WHERE delivery_id=?', (uid,))
     db.execute('DELETE FROM users WHERE id=?', (uid,))
     db.commit()
@@ -192,7 +216,6 @@ def admin_order_delete(order_id):
     guard = require_role('admin')
     if guard: return guard
     db = get_db()
-    # Restore inventory quantities before deleting
     items = db.execute('SELECT * FROM order_items WHERE order_id=?', (order_id,)).fetchall()
     for item in items:
         if item['inventory_id']:
@@ -225,6 +248,40 @@ def admin_inventory_delete(item_id):
     db.execute('DELETE FROM inventory WHERE id=?', (item_id,))
     db.commit()
     flash('Inventory item removed.')
+    return redirect(url_for('dashboard'))
+
+# ─── Admin: category management ───────────────────────────────────────────────
+
+@app.route('/admin/category/add', methods=['POST'])
+def admin_category_add():
+    guard = require_role('admin')
+    if guard: return guard
+    db = get_db()
+    name = request.form['name'].strip()
+    icon = request.form.get('icon', '📦').strip() or '📦'
+    if not name:
+        flash('Category name is required.')
+        return redirect(url_for('dashboard'))
+    try:
+        db.execute('INSERT INTO categories (name, icon) VALUES (?,?)', (name, icon))
+        db.commit()
+        flash(f"Category '{name}' added.")
+    except Exception:
+        flash(f"Category '{name}' already exists.")
+    return redirect(url_for('dashboard'))
+
+@app.route('/admin/category/delete/<int:cat_id>', methods=['POST'])
+def admin_category_delete(cat_id):
+    guard = require_role('admin')
+    if guard: return guard
+    db = get_db()
+    in_use = db.execute('SELECT COUNT(*) as c FROM inventory WHERE category_id=?', (cat_id,)).fetchone()['c']
+    if in_use:
+        flash(f'Cannot delete: {in_use} inventory item(s) still use this category.')
+        return redirect(url_for('dashboard'))
+    db.execute('DELETE FROM categories WHERE id=?', (cat_id,))
+    db.commit()
+    flash('Category deleted.')
     return redirect(url_for('dashboard'))
 
 # ─── Principal dashboard ───────────────────────────────────────────────────────
@@ -265,11 +322,15 @@ def _principal_dashboard(db, user):
 # ─── Staff dashboard ───────────────────────────────────────────────────────────
 
 def _staff_dashboard(db, user):
+    # Inventory with category name + icon from categories table
     items = db.execute('''
-        SELECT i.*, u.name AS merchant_name, u.phone AS merchant_phone
-        FROM inventory i JOIN users u ON i.merchant_id = u.id
+        SELECT i.*, c.name AS category, c.icon AS category_icon,
+               u.name AS merchant_name, u.phone AS merchant_phone
+        FROM inventory i
+        JOIN categories c ON i.category_id = c.id
+        JOIN users u ON i.merchant_id = u.id
         WHERE i.quantity > 0 AND u.is_active = 1
-        ORDER BY i.category, i.item_name
+        ORDER BY c.name, i.item_name
     ''').fetchall()
     my_orders = db.execute(
         'SELECT * FROM orders WHERE placed_by=? ORDER BY created_at DESC LIMIT 20',
@@ -279,16 +340,21 @@ def _staff_dashboard(db, user):
         'SELECT * FROM ai_suggestions WHERE DATE(generated_at)=? ORDER BY item_name',
         (date.today().isoformat(),)
     ).fetchall()
+    categories = get_categories(db)
     return render_template('staff_dashboard.html',
-        user=user, items=items, my_orders=my_orders, ai_suggestions=ai_suggestions)
+        user=user, items=items, my_orders=my_orders,
+        ai_suggestions=ai_suggestions, categories=categories)
 
 # ─── Merchant dashboard ────────────────────────────────────────────────────────
 
 def _merchant_dashboard(db, user):
-    my_items = db.execute(
-        'SELECT * FROM inventory WHERE merchant_id=? ORDER BY category, item_name',
-        (user['id'],)
-    ).fetchall()
+    my_items = db.execute('''
+        SELECT i.*, c.name AS category, c.icon AS category_icon
+        FROM inventory i
+        JOIN categories c ON i.category_id = c.id
+        WHERE i.merchant_id=?
+        ORDER BY c.name, i.item_name
+    ''', (user['id'],)).fetchall()
     my_orders = db.execute('''
         SELECT oi.*, o.id as order_id, o.status, o.created_at, u.name as staff_name
         FROM order_items oi
@@ -298,17 +364,20 @@ def _merchant_dashboard(db, user):
         WHERE i.merchant_id=?
         ORDER BY o.created_at DESC LIMIT 30
     ''', (user['id'],)).fetchall()
+    categories = get_categories(db)
     return render_template('merchant_dashboard.html',
-        user=user, my_items=my_items, my_orders=my_orders)
+        user=user, my_items=my_items, my_orders=my_orders, categories=categories)
 
 # ─── Delivery dashboard ────────────────────────────────────────────────────────
 
 def _delivery_dashboard(db, user):
     available = db.execute(
-        "SELECT o.*, u.name as staff_name FROM orders o JOIN users u ON o.placed_by=u.id WHERE o.status='confirmed' AND o.delivery_id IS NULL ORDER BY o.created_at"
+        "SELECT o.*, u.name as staff_name FROM orders o JOIN users u ON o.placed_by=u.id "
+        "WHERE o.status='confirmed' AND o.delivery_id IS NULL ORDER BY o.created_at"
     ).fetchall()
     my_jobs = db.execute(
-        "SELECT o.*, u.name as staff_name FROM orders o JOIN users u ON o.placed_by=u.id WHERE o.delivery_id=? ORDER BY o.created_at DESC LIMIT 20",
+        "SELECT o.*, u.name as staff_name FROM orders o JOIN users u ON o.placed_by=u.id "
+        "WHERE o.delivery_id=? ORDER BY o.created_at DESC LIMIT 20",
         (user['id'],)
     ).fetchall()
     return render_template('delivery_dashboard.html',
@@ -322,9 +391,10 @@ def inventory_add():
     if guard: return guard
     user = current_user()
     db = get_db()
+    cat_id = request.form['category_id']
     db.execute(
-        'INSERT INTO inventory (merchant_id, item_name, category, unit, quantity, price_per_unit) VALUES (?,?,?,?,?,?)',
-        (user['id'], request.form['item_name'], request.form['category'],
+        'INSERT INTO inventory (merchant_id, item_name, category_id, unit, quantity, price_per_unit) VALUES (?,?,?,?,?,?)',
+        (user['id'], request.form['item_name'], cat_id,
          request.form['unit'], float(request.form['quantity']), float(request.form['price']))
     )
     db.commit()
@@ -369,7 +439,6 @@ def order_place():
         flash('Your order is empty.')
         return redirect(url_for('dashboard'))
 
-    # ── Stock validation: check every item before touching anything ──
     errors = []
     validated = []
     for item in cart:
@@ -394,7 +463,6 @@ def order_place():
             flash(e)
         return redirect(url_for('dashboard'))
 
-    # ── All good — create order ──
     total = sum(v['inv']['price_per_unit'] * v['qty'] for v in validated)
     order_id = db.execute(
         'INSERT INTO orders (placed_by, total_amount, notes) VALUES (?,?,?)',
@@ -476,17 +544,17 @@ def ai_suggest():
     today = date.today().isoformat()
     db.execute("DELETE FROM ai_suggestions WHERE DATE(generated_at)=?", (today,))
     base_per_100 = {
-        'Rice':         ('kg', 5.0,  'Grains'),
-        'Dal (Lentil)': ('kg', 2.5,  'Grains'),
-        'Tomatoes':     ('kg', 2.0,  'Vegetables'),
-        'Onions':       ('kg', 1.5,  'Vegetables'),
-        'Potatoes':     ('kg', 3.0,  'Vegetables'),
-        'Spinach':      ('kg', 1.0,  'Vegetables'),
-        'Cooking Oil':  ('L',  0.8,  'Oils'),
-        'Salt':         ('kg', 0.3,  'Spices'),
-        'Turmeric':     ('g',  50.0, 'Spices'),
-        'Chili Powder': ('g',  40.0, 'Spices'),
-        'Mustard Seeds':('g',  30.0, 'Spices'),
+        'Rice':          ('kg', 5.0,  'Grains'),
+        'Dal (Lentil)':  ('kg', 2.5,  'Grains'),
+        'Tomatoes':      ('kg', 2.0,  'Vegetables'),
+        'Onions':        ('kg', 1.5,  'Vegetables'),
+        'Potatoes':      ('kg', 3.0,  'Vegetables'),
+        'Spinach':       ('kg', 1.0,  'Vegetables'),
+        'Cooking Oil':   ('L',  0.8,  'Oils'),
+        'Salt':          ('kg', 0.3,  'Spices'),
+        'Turmeric':      ('g',  50.0, 'Spices'),
+        'Chili Powder':  ('g',  40.0, 'Spices'),
+        'Mustard Seeds': ('g',  30.0, 'Spices'),
     }
     suggestions = []
     for item, (unit, qty_per_100, cat) in base_per_100.items():
@@ -508,16 +576,27 @@ def ai_suggest():
     db.commit()
     return jsonify({'suggestions': suggestions, 'attendance': attendance})
 
+# ─── Public API ────────────────────────────────────────────────────────────────
+
 @app.route('/api/inventory')
 def api_inventory():
     db = get_db()
     items = db.execute('''
-        SELECT i.*, u.name AS merchant_name FROM inventory i
-        JOIN users u ON i.merchant_id=u.id
+        SELECT i.id, i.item_name, c.name AS category, c.icon AS category_icon,
+               i.unit, i.quantity, i.price_per_unit,
+               u.name AS merchant_name
+        FROM inventory i
+        JOIN categories c ON i.category_id = c.id
+        JOIN users u ON i.merchant_id = u.id
         WHERE i.quantity > 0 AND u.is_active = 1
-        ORDER BY i.category, i.item_name
+        ORDER BY c.name, i.item_name
     ''').fetchall()
     return jsonify([dict(r) for r in items])
+
+@app.route('/api/categories')
+def api_categories():
+    db = get_db()
+    return jsonify(get_categories(db))
 
 if __name__ == '__main__':
     app.run(debug=True, port=5000)
