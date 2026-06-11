@@ -2,6 +2,8 @@ from flask import Flask, render_template, request, redirect, url_for, session, j
 from database import init_db, get_db
 from datetime import datetime, date
 import json, hashlib, os
+# anthropic is imported lazily inside ai_suggest() so the app still runs
+# even if the package or API key isn't configured (falls back to formula).
 
 app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', 'schoolmeal-dev-secret-2024')
@@ -475,36 +477,123 @@ def ai_suggest():
     attendance = int(data.get('attendance', 200))
     today = date.today().isoformat()
     db.execute("DELETE FROM ai_suggestions WHERE DATE(generated_at)=?", (today,))
-    base_per_100 = {
-        'Rice':         ('kg', 5.0,  'Grains'),
-        'Dal (Lentil)': ('kg', 2.5,  'Grains'),
-        'Tomatoes':     ('kg', 2.0,  'Vegetables'),
-        'Onions':       ('kg', 1.5,  'Vegetables'),
-        'Potatoes':     ('kg', 3.0,  'Vegetables'),
-        'Spinach':      ('kg', 1.0,  'Vegetables'),
-        'Cooking Oil':  ('L',  0.8,  'Oils'),
-        'Salt':         ('kg', 0.3,  'Spices'),
-        'Turmeric':     ('g',  50.0, 'Spices'),
-        'Chili Powder': ('g',  40.0, 'Spices'),
-        'Mustard Seeds':('g',  30.0, 'Spices'),
-    }
+
+    # Real items currently in stock from active merchants, so the AI suggests
+    # things that can actually be matched and ordered.
+    stock_rows = db.execute('''
+        SELECT i.item_name, i.category, i.unit, i.quantity
+        FROM inventory i
+        JOIN users u ON i.merchant_id = u.id
+        WHERE i.quantity > 0 AND u.is_active = 1
+        ORDER BY i.category, i.item_name
+    ''').fetchall()
+    stock_list = [dict(r) for r in stock_rows]
+
+    # Past 7 days average ordered quantity per item, for grounding the model
+    history_rows = db.execute('''
+        SELECT oi.item_name, AVG(oi.quantity) as avg_qty, oi.unit
+        FROM order_items oi
+        WHERE oi.order_id IN (
+            SELECT id FROM orders WHERE created_at >= date('now','-7 days')
+        )
+        GROUP BY oi.item_name, oi.unit
+    ''').fetchall()
+    history_list = [dict(r) for r in history_rows]
+
     suggestions = []
-    for item, (unit, qty_per_100, cat) in base_per_100.items():
-        suggested_qty = round((qty_per_100 * attendance) / 100, 2)
-        avg_row = db.execute('''
-            SELECT AVG(oi.quantity) as avg_qty FROM order_items oi
-            WHERE oi.item_name LIKE ? AND oi.order_id IN (
-                SELECT id FROM orders WHERE created_at >= date('now','-7 days')
-            )
-        ''', (f'%{item}%',)).fetchone()
-        avg_past = avg_row['avg_qty'] if avg_row and avg_row['avg_qty'] else None
-        if avg_past:
-            suggested_qty = round((suggested_qty * 0.6 + avg_past * 0.4), 2)
+    try:
+        import anthropic
+        client = anthropic.Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
+
+        prompt = f"""You are an AI assistant helping a government school plan grocery
+quantities for the Midday Meal Programme.
+
+Expected student attendance today: {attendance}
+
+Items currently available in merchant stock (item_name, category, unit, quantity available):
+{json.dumps(stock_list, indent=2)}
+
+Average quantities ordered per item over the past 7 days (item_name, avg_qty, unit):
+{json.dumps(history_list, indent=2)}
+
+Based on the attendance number, typical midday-meal recipe proportions (e.g. roughly
+~5kg rice, ~2.5kg dal, ~2kg tomatoes, ~1.5kg onions, ~3kg potatoes, ~1kg leafy greens,
+~0.8L oil, ~0.3kg salt, ~50g turmeric, ~40g chili powder, ~30g mustard seeds per 100
+students), and the historical ordering data, suggest quantities to order today.
+
+Rules:
+- Only suggest items whose names closely match an item from the available stock list
+  above (use the exact item_name as it appears in stock where possible).
+- Do not suggest a quantity greater than the available stock quantity for that item.
+- Cover the main categories needed for a meal (grains, vegetables, oils, spices) where
+  matching stock items exist.
+- Blend the formula-based estimate with the historical average where history exists
+  (roughly 60% formula, 40% history).
+
+Respond with ONLY a JSON array, no other text, no markdown fences, in this exact format:
+[
+  {{"item": "Rice (Ponni)", "qty": 10.0, "unit": "kg", "category": "Grains"}},
+  ...
+]
+"""
+
+        message = client.messages.create(
+            model="claude-sonnet-4-20250514",
+            max_tokens=1024,
+            messages=[{"role": "user", "content": prompt}]
+        )
+
+        raw_text = message.content[0].text.strip()
+        raw_text = raw_text.replace('```json', '').replace('```', '').strip()
+        ai_suggestions = json.loads(raw_text)
+
+        for s in ai_suggestions:
+            item = s.get('item')
+            unit = s.get('unit')
+            cat = s.get('category', '')
+            try:
+                qty = round(float(s.get('qty', 0)), 2)
+            except (TypeError, ValueError):
+                continue
+            if not item or not unit or qty <= 0:
+                continue
+            suggestions.append({'item': item, 'qty': qty, 'unit': unit, 'category': cat})
+
+    except Exception as e:
+        # Fall back to a simple formula-based estimate if the AI call fails
+        # (e.g. missing API key, network issue, or bad JSON response).
+        base_per_100 = {
+            'Rice':         ('kg', 5.0,  'Grains'),
+            'Dal (Lentil)': ('kg', 2.5,  'Grains'),
+            'Tomatoes':     ('kg', 2.0,  'Vegetables'),
+            'Onions':       ('kg', 1.5,  'Vegetables'),
+            'Potatoes':     ('kg', 3.0,  'Vegetables'),
+            'Spinach':      ('kg', 1.0,  'Vegetables'),
+            'Cooking Oil':  ('L',  0.8,  'Oils'),
+            'Salt':         ('kg', 0.3,  'Spices'),
+            'Turmeric':     ('g',  50.0, 'Spices'),
+            'Chili Powder': ('g',  40.0, 'Spices'),
+            'Mustard Seeds':('g',  30.0, 'Spices'),
+        }
+        for item, (unit, qty_per_100, cat) in base_per_100.items():
+            suggested_qty = round((qty_per_100 * attendance) / 100, 2)
+            avg_row = db.execute('''
+                SELECT AVG(oi.quantity) as avg_qty FROM order_items oi
+                WHERE oi.item_name LIKE ? AND oi.order_id IN (
+                    SELECT id FROM orders WHERE created_at >= date('now','-7 days')
+                )
+            ''', (f'%{item}%',)).fetchone()
+            avg_past = avg_row['avg_qty'] if avg_row and avg_row['avg_qty'] else None
+            if avg_past:
+                suggested_qty = round((suggested_qty * 0.6 + avg_past * 0.4), 2)
+            suggestions.append({'item': item, 'qty': suggested_qty, 'unit': unit, 'category': cat})
+        print(f"[ai_suggest] Falling back to formula-based suggestions due to: {e}")
+
+    for s in suggestions:
         db.execute(
             'INSERT INTO ai_suggestions (item_name, category, suggested_qty, unit, basis_attendance) VALUES (?,?,?,?,?)',
-            (item, cat, suggested_qty, unit, attendance)
+            (s['item'], s['category'], s['qty'], s['unit'], attendance)
         )
-        suggestions.append({'item': item, 'qty': suggested_qty, 'unit': unit, 'category': cat})
     db.commit()
     return jsonify({'suggestions': suggestions, 'attendance': attendance})
 
