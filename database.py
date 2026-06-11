@@ -19,9 +19,10 @@ def init_db():
             id            INTEGER PRIMARY KEY AUTOINCREMENT,
             username      TEXT    UNIQUE NOT NULL,
             password_hash TEXT    NOT NULL,
-            role          TEXT    NOT NULL CHECK(role IN ('principal','school_staff','merchant','delivery')),
+            role          TEXT    NOT NULL CHECK(role IN ('admin','principal','school_staff','merchant','delivery')),
             name          TEXT    NOT NULL,
             phone         TEXT,
+            is_active     INTEGER NOT NULL DEFAULT 1,
             created_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
         CREATE TABLE IF NOT EXISTS inventory (
@@ -64,21 +65,28 @@ def init_db():
         );
     ''')
     db.commit()
-    # Seed demo accounts if empty
+
+    # Add is_active column if upgrading from old DB
+    try:
+        db.execute('ALTER TABLE users ADD COLUMN is_active INTEGER NOT NULL DEFAULT 1')
+        db.commit()
+    except Exception:
+        pass
+
     existing = db.execute('SELECT COUNT(*) as c FROM users').fetchone()['c']
     if existing == 0:
         def h(p): return hashlib.sha256(p.encode()).hexdigest()
         users = [
-            ('principal',  h('demo123'), 'principal',    'Mrs. Lakshmi Devi',      '9876543210'),
-            ('staff1',     h('demo123'), 'school_staff', 'Mr. Rajan Kumar',        '9876543211'),
-            ('merchant1',  h('demo123'), 'merchant',     'Annamalai Vegetables',   '9876543212'),
-            ('merchant2',  h('demo123'), 'merchant',     'Sri Ganesh Provisions',  '9876543213'),
-            ('delivery1',  h('demo123'), 'delivery',     'Murugan Delivery Co.',   '9876543214'),
+            ('admin',      h('admin123'),  'admin',        'System Administrator',   '9000000000'),
+            ('principal',  h('demo123'),   'principal',    'Mrs. Lakshmi Devi',      '9876543210'),
+            ('staff1',     h('demo123'),   'school_staff', 'Mr. Rajan Kumar',        '9876543211'),
+            ('merchant1',  h('demo123'),   'merchant',     'Annamalai Vegetables',   '9876543212'),
+            ('merchant2',  h('demo123'),   'merchant',     'Sri Ganesh Provisions',  '9876543213'),
+            ('delivery1',  h('demo123'),   'delivery',     'Murugan Delivery Co.',   '9876543214'),
         ]
         for row in users:
             db.execute('INSERT INTO users (username,password_hash,role,name,phone) VALUES (?,?,?,?,?)', row)
         db.commit()
-        # Seed inventory for merchant1
         m1 = db.execute("SELECT id FROM users WHERE username='merchant1'").fetchone()['id']
         m2 = db.execute("SELECT id FROM users WHERE username='merchant2'").fetchone()['id']
         items_m1 = [

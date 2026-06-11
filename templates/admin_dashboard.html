@@ -1,0 +1,253 @@
+{% extends "base.html" %}
+{% block title %}Admin Panel — SchoolMeal Connect{% endblock %}
+{% block extra_head %}
+<style>
+.tab-bar{display:flex;gap:.3rem;border-bottom:2px solid var(--border);margin-bottom:1.5rem;flex-wrap:wrap}
+.tab{padding:.6rem 1.2rem;border:none;background:none;font-family:inherit;font-size:.88rem;font-weight:600;color:var(--ink-soft);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-2px;transition:all .2s;border-radius:6px 6px 0 0}
+.tab:hover{color:var(--ink);background:var(--bg)}
+.tab.active{color:var(--leaf);border-bottom-color:var(--leaf);background:none}
+.tab-panel{display:none}.tab-panel.active{display:block}
+.role-tag{display:inline-block;padding:.18rem .55rem;border-radius:4px;font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.4px}
+.role-admin{background:#FCE4EC;color:#880E4F}
+.role-principal{background:#FFF3E0;color:#E65100}
+.role-school_staff{background:#E8F5E9;color:#1B5E20}
+.role-merchant{background:#E3F2FD;color:#0D47A1}
+.role-delivery{background:#EDE7F6;color:#4527A0}
+.status-dot{width:8px;height:8px;border-radius:50%;display:inline-block;margin-right:.4rem}
+.dot-active{background:#4CAF50}.dot-inactive{background:#EF5350}
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:300;display:flex;align-items:center;justify-content:center;padding:1rem}
+.modal{background:#fff;border-radius:14px;padding:1.8rem;width:100%;max-width:460px;box-shadow:0 8px 40px rgba(0,0,0,.2);max-height:90vh;overflow-y:auto}
+.modal h3{font-family:'Sora',sans-serif;font-size:1.1rem;font-weight:700;margin-bottom:1.2rem}
+.danger-zone{border:1.5px solid #FFCDD2;border-radius:8px;padding:.8rem 1rem;margin-top:.5rem;background:#FFF5F5}
+.danger-title{font-size:.75rem;font-weight:700;color:#C62828;text-transform:uppercase;letter-spacing:.5px;margin-bottom:.5rem}
+</style>
+{% endblock %}
+{% block content %}
+<div class="page">
+  <div class="page-header">
+    <h1>⚙️ Admin Panel</h1>
+    <p>Full system control — {{ user.name }}</p>
+  </div>
+
+  <!-- Stats -->
+  <div class="stats-row">
+    <div class="stat-card saffron">
+      <div class="stat-value">{{ stats.total_users }}</div>
+      <div class="stat-label">Total Users</div>
+    </div>
+    <div class="stat-card leaf">
+      <div class="stat-value">{{ stats.total_orders }}</div>
+      <div class="stat-label">Total Orders</div>
+    </div>
+    <div class="stat-card sky">
+      <div class="stat-value">₹{{ "%.0f"|format(stats.total_spend) }}</div>
+      <div class="stat-label">Total Spend</div>
+    </div>
+    <div class="stat-card purple">
+      <div class="stat-value">{{ stats.active_items }}</div>
+      <div class="stat-label">Stock Items</div>
+    </div>
+  </div>
+
+  <!-- Tabs -->
+  <div class="tab-bar">
+    <button class="tab active" onclick="switchTab('users',this)">👥 Users ({{ users|length }})</button>
+    <button class="tab" onclick="switchTab('orders',this)">📋 Orders ({{ orders|length }})</button>
+    <button class="tab" onclick="switchTab('inventory',this)">📦 Inventory ({{ inventory|length }})</button>
+  </div>
+
+  <!-- ── USERS TAB ── -->
+  <div id="tab-users" class="tab-panel active">
+    <div style="display:flex;justify-content:flex-end;margin-bottom:1rem">
+      <button class="btn btn-primary" onclick="document.getElementById('addUserModal').style.display='flex'">+ Add User</button>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>Status</th><th>Name</th><th>Username</th><th>Role</th><th>Phone</th><th>Joined</th><th>Actions</th></tr>
+        </thead>
+        <tbody>
+        {% for u in users %}
+          <tr style="{% if not u.is_active %}opacity:.55{% endif %}">
+            <td><span class="status-dot {% if u.is_active %}dot-active{% else %}dot-inactive{% endif %}"></span>{{ 'Active' if u.is_active else 'Disabled' }}</td>
+            <td><strong>{{ u.name }}</strong></td>
+            <td style="font-family:monospace;font-size:.85rem">{{ u.username }}</td>
+            <td><span class="role-tag role-{{ u.role }}">{{ u.role.replace('_',' ') }}</span></td>
+            <td style="font-size:.83rem;color:var(--ink-mid)">{{ u.phone or '—' }}</td>
+            <td style="font-size:.8rem;color:var(--ink-soft)">{{ u.created_at[:10] }}</td>
+            <td>
+              {% if u.role != 'admin' %}
+              <div style="display:flex;gap:.4rem;flex-wrap:wrap">
+                <button class="btn btn-ghost btn-sm" onclick="openResetModal({{ u.id }}, '{{ u.name|e }}')">Reset PW</button>
+                <form method="POST" action="/admin/user/toggle/{{ u.id }}" style="display:inline">
+                  <button type="submit" class="btn btn-sm {% if u.is_active %}btn-ghost{% else %}btn-primary{% endif %}">
+                    {{ 'Disable' if u.is_active else 'Enable' }}
+                  </button>
+                </form>
+                <form method="POST" action="/admin/user/delete/{{ u.id }}" style="display:inline"
+                      onsubmit="return confirm('Delete {{ u.name }}? This cannot be undone.')">
+                  <button type="submit" class="btn btn-danger btn-sm">Delete</button>
+                </form>
+              </div>
+              {% else %}
+              <span style="font-size:.78rem;color:var(--ink-soft)">— admin —</span>
+              {% endif %}
+            </td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ── ORDERS TAB ── -->
+  <div id="tab-orders" class="tab-panel">
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>Order #</th><th>Placed By</th><th>Date</th><th>Amount</th><th>Status</th><th>Actions</th></tr>
+        </thead>
+        <tbody>
+        {% for o in orders %}
+          <tr>
+            <td><strong>#{{ o.id }}</strong></td>
+            <td>{{ o.staff_name }}</td>
+            <td style="font-size:.83rem;color:var(--ink-mid)">{{ o.created_at[:16] }}</td>
+            <td><strong>₹{{ "%.2f"|format(o.total_amount) }}</strong></td>
+            <td>
+              <form method="POST" action="/admin/order/status/{{ o.id }}" style="display:inline">
+                <select name="status" onchange="this.form.submit()" style="padding:.25rem .5rem;border-radius:6px;font-size:.8rem;border:1.5px solid var(--border)">
+                  {% for s in ['pending','confirmed','out_for_delivery','delivered','cancelled'] %}
+                  <option value="{{ s }}" {% if o.status==s %}selected{% endif %}>{{ s.replace('_',' ').title() }}</option>
+                  {% endfor %}
+                </select>
+              </form>
+            </td>
+            <td style="display:flex;gap:.4rem">
+              <a href="/order/{{ o.id }}" class="btn btn-ghost btn-sm">View</a>
+              <form method="POST" action="/admin/order/delete/{{ o.id }}"
+                    onsubmit="return confirm('Delete Order #{{ o.id }}? Stock will be restored.')">
+                <button type="submit" class="btn btn-danger btn-sm">Delete</button>
+              </form>
+            </td>
+          </tr>
+        {% endfor %}
+        {% if not orders %}
+        <tr><td colspan="6"><div class="empty"><div class="empty-icon">📋</div><p>No orders yet</p></div></td></tr>
+        {% endif %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ── INVENTORY TAB ── -->
+  <div id="tab-inventory" class="tab-panel">
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>Item</th><th>Category</th><th>Merchant</th><th>Stock</th><th>Price</th><th>Action</th></tr>
+        </thead>
+        <tbody>
+        {% for item in inventory %}
+          <tr>
+            <td><strong>{{ item.item_name }}</strong></td>
+            <td><span class="chip chip-{{ item.category }}">{{ item.category }}</span></td>
+            <td style="font-size:.85rem">{{ item.merchant_name }}</td>
+            <td>
+              <span style="{% if item.quantity == 0 %}color:#EF5350;font-weight:700{% elif item.quantity < 5 %}color:var(--turmeric);font-weight:600{% endif %}">
+                {{ item.quantity }} {{ item.unit }}
+              </span>
+            </td>
+            <td>₹{{ "%.2f"|format(item.price_per_unit) }}/{{ item.unit }}</td>
+            <td>
+              <form method="POST" action="/admin/inventory/delete/{{ item.id }}"
+                    onsubmit="return confirm('Remove {{ item.item_name }} from inventory?')">
+                <button type="submit" class="btn btn-danger btn-sm">Remove</button>
+              </form>
+            </td>
+          </tr>
+        {% endfor %}
+        {% if not inventory %}
+        <tr><td colspan="6"><div class="empty"><div class="empty-icon">📦</div><p>No inventory items</p></div></td></tr>
+        {% endif %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- Add User Modal -->
+<div id="addUserModal" class="modal-overlay" style="display:none" onclick="if(event.target===this)this.style.display='none'">
+  <div class="modal">
+    <h3>+ Add New User</h3>
+    <form method="POST" action="/admin/user/add">
+      <div class="form-group">
+        <label>Full Name / Organisation</label>
+        <input type="text" name="name" placeholder="e.g. Mrs. Priya Nair" required>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Username</label>
+          <input type="text" name="username" placeholder="unique username" required>
+        </div>
+        <div class="form-group">
+          <label>Phone</label>
+          <input type="tel" name="phone" placeholder="mobile number">
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Role</label>
+        <select name="role" required>
+          <option value="">Select role…</option>
+          <option value="principal">🏫 Principal</option>
+          <option value="school_staff">📋 School Staff</option>
+          <option value="merchant">🥬 Merchant</option>
+          <option value="delivery">🚚 Delivery</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Password</label>
+        <input type="password" name="password" placeholder="Set a password" required>
+      </div>
+      <div style="display:flex;gap:.7rem;margin-top:.5rem">
+        <button type="submit" class="btn btn-primary" style="flex:1">Create User</button>
+        <button type="button" class="btn btn-ghost" onclick="document.getElementById('addUserModal').style.display='none'">Cancel</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Reset Password Modal -->
+<div id="resetModal" class="modal-overlay" style="display:none" onclick="if(event.target===this)this.style.display='none'">
+  <div class="modal">
+    <h3>🔑 Reset Password</h3>
+    <p style="font-size:.87rem;color:var(--ink-mid);margin-bottom:1rem" id="resetModalSub"></p>
+    <form method="POST" id="resetForm">
+      <input type="hidden" name="uid" id="resetUid">
+      <div class="form-group">
+        <label>New Password</label>
+        <input type="password" name="new_password" placeholder="Enter new password (min 4 chars)" required minlength="4">
+      </div>
+      <div style="display:flex;gap:.7rem;margin-top:.5rem">
+        <button type="submit" class="btn btn-saffron" style="flex:1">Set New Password</button>
+        <button type="button" class="btn btn-ghost" onclick="document.getElementById('resetModal').style.display='none'">Cancel</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+function switchTab(name, btn) {
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(b => b.classList.remove('active'));
+  document.getElementById('tab-' + name).classList.add('active');
+  btn.classList.add('active');
+}
+function openResetModal(uid, name) {
+  document.getElementById('resetUid').value = uid;
+  document.getElementById('resetModalSub').textContent = 'Resetting password for: ' + name;
+  document.getElementById('resetForm').action = '/admin/user/reset_password/' + uid;
+  document.getElementById('resetModal').style.display = 'flex';
+}
+</script>
+{% endblock %}

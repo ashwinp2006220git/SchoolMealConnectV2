@@ -149,7 +149,10 @@ const cart = {};
 const prices = {};
 const units = {};
 
+const stockLimits = {};
+
 function toggleItem(id, name, price, unit, stock) {
+  stockLimits[id] = stock;
   if (cart[id]) {
     delete cart[id]; delete prices[id]; delete units[id];
     document.getElementById('card-'+id).classList.remove('in-cart');
@@ -163,16 +166,19 @@ function toggleItem(id, name, price, unit, stock) {
 }
 
 function addFromAI(name, qty, unit) {
-  // Find matching inventory item and add with suggested qty
   fetch('/api/inventory').then(r=>r.json()).then(items => {
     const match = items.find(i => i.item_name.toLowerCase().includes(name.toLowerCase()));
     if (match) {
-      cart[match.id] = qty;
+      const safeQty = Math.min(qty, match.quantity);
+      stockLimits[match.id] = match.quantity;
+      cart[match.id] = safeQty;
       prices[match.id] = match.price_per_unit;
       units[match.id] = match.unit;
       const el = document.getElementById('card-'+match.id);
       if(el) el.classList.add('in-cart');
       renderCart();
+    } else {
+      alert(`'${name}' is not currently in stock from any merchant.`);
     }
   });
 }
@@ -194,11 +200,12 @@ function renderCart() {
     const qty = parseFloat(cart[id]);
     const subtotal = qty * prices[id];
     total += subtotal;
+    const maxStock = stockLimits[id] || 9999;
     html += `<div class="cart-item-row" id="ci-${id}">
       <div style="flex:1;min-width:0"><div style="font-weight:600;font-size:.83rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" id="cn-${id}">Item #${id}</div>
-      <div style="font-size:.75rem;color:var(--ink-soft)">₹${prices[id].toFixed(2)} / ${units[id]}</div></div>
-      <input class="qty-input" type="number" value="${qty}" min="0.1" step="0.5"
-             onchange="updateQty(${id}, this.value)" style="width:65px">
+      <div style="font-size:.75rem;color:var(--ink-soft)">₹${prices[id].toFixed(2)} / ${units[id]} &nbsp;·&nbsp; max ${maxStock} ${units[id]}</div></div>
+      <input class="qty-input" type="number" value="${qty}" min="0.1" step="0.5" max="${maxStock}"
+             onchange="updateQty(${id}, this.value, ${maxStock})" style="width:65px">
       <span style="font-size:.83rem;font-weight:600;color:var(--saffron);min-width:52px;text-align:right">₹${subtotal.toFixed(0)}</span>
       <button onclick="removeItem(${id})" style="background:none;border:none;cursor:pointer;color:var(--ink-soft);font-size:1rem;padding:0 .2rem">✕</button>
     </div>`;
@@ -217,7 +224,17 @@ function renderCart() {
   });
 }
 
-function updateQty(id, val) { cart[id] = parseFloat(val) || 0; renderCart(); }
+function updateQty(id, val, maxStock) {
+  let qty = parseFloat(val) || 0;
+  if (qty > maxStock) {
+    qty = maxStock;
+    const inputs = document.querySelectorAll(`#ci-${id} .qty-input`);
+    inputs.forEach(i => i.value = maxStock);
+    alert(`Only ${maxStock} ${units[id]} available from this merchant.`);
+  }
+  cart[id] = qty;
+  renderCart();
+}
 function removeItem(id) {
   delete cart[id]; delete prices[id]; delete units[id];
   const el = document.getElementById('card-'+id);
