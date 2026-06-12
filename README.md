@@ -93,9 +93,11 @@ Through this project, I gained practical experience in Flask, SQLite, HTML, CSS,
 ### Aaron Philip Paeton:
 
 In this project,I worked on monitoring and delivery parts.This includes features such as viewing all orders ,updating delivery status ,a chart analysing total amount ,monitoring suppliers.I also developed dashboards for principal and delivery users 
+
 Through this,i gained a better  understanding on how dashboards are designed,how data can be retrieved from databases and displayed using charts.This project also helped me in gaining practical experience in Flask, SQLite,HTML,CSS and JavaScript
 
 ### Ashwin P:
 
 In this project, I worked on the user management and authentication part. This includes features such as user login, registration,  password and phone number updates and role-based access for Admin, Principal, Staff, Merchant, and Delivery users. I also developed pages for login, registration, and admin user management.
+
 Through this, I gained a better understanding of how secure authentication systems are built, how role-based permissions work, and how user data is managed in databases. This project also helped me in  gaining practical experience in Flask, SQLite, HTML, CSS, and JavaScript.
