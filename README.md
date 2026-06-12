@@ -83,6 +83,6 @@ For production, set the environment variable:
 export SECRET_KEY=your-secure-random-key
 
 ```
-##REPORTAnd replace SQLite with PostgreSQL by updating `database.py`.
+## REPORT
 ##
 ##
