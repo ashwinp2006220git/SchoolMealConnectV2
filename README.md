@@ -92,7 +92,7 @@ Through this project, I gained practical experience in Flask, SQLite, HTML, CSS,
 
 ### Aaron Philip Paeton:
 
-In this project,I worked on monitoring and delivery parts.This includes features such as viewing all orders ,updating delivery status ,a chart analysing total amount ,monitoring suppliers.I also developed dashboards for principal and delivery users 
+In this project,I worked on monitoring and delivery parts.This includes features such as viewing all orders ,updating delivery status,monitoring suppliers and a chart analysing total amount.I also developed dashboards for principal and delivery users 
 
 Through this,i gained a better  understanding on how dashboards are designed,how data can be retrieved from databases and displayed using charts.This project also helped me in gaining practical experience in Flask, SQLite,HTML,CSS and JavaScript
 
