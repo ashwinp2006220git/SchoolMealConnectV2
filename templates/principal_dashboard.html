@@ -2,6 +2,12 @@
 {% block title %}Principal Dashboard — SchoolMeal Connect{% endblock %}
 {% block extra_head %}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.48);z-index:200;display:flex;align-items:center;justify-content:center;padding:1rem}
+.modal{background:#fff;border-radius:14px;padding:1.8rem;width:100%;max-width:440px;box-shadow:0 8px 40px rgba(0,0,0,.2);max-height:90vh;overflow-y:auto}
+.modal h3{font-family:'Sora',sans-serif;font-size:1.05rem;font-weight:700;margin-bottom:1.2rem}
+.staff-note{font-size:.78rem;color:var(--ink-soft);background:#FFF8E1;border:1px solid #FFE082;border-radius:6px;padding:.5rem .8rem;margin-bottom:.9rem}
+</style>
 {% endblock %}
 {% block content %}
 <div class="page">
@@ -51,6 +57,51 @@
     </div>
   </div>
 
+  <!-- ── Staff Management ─────────────────────────────────────────────────── -->
+  <div class="card" style="margin-bottom:1.4rem">
+    <div class="card-title" style="display:flex;align-items:center;justify-content:space-between">
+      <span><span class="icon">👥</span> School Staff Management</span>
+      <button class="btn btn-primary btn-sm" onclick="document.getElementById('addStaffModal').style.display='flex'">+ Add Staff</button>
+    </div>
+
+    {% if staff_list %}
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>Name</th><th>Username</th><th>Phone</th><th>Status</th><th>Joined</th><th>Actions</th></tr>
+        </thead>
+        <tbody>
+        {% for s in staff_list %}
+          <tr style="{% if not s.is_active %}opacity:.55{% endif %}">
+            <td><strong>{{ s.name }}</strong></td>
+            <td style="font-family:monospace;font-size:.85rem">{{ s.username }}</td>
+            <td style="font-size:.83rem;color:var(--ink-mid)">{{ s.phone or '—' }}</td>
+            <td>
+              <span style="display:inline-flex;align-items:center;gap:.35rem;font-size:.8rem;font-weight:600;color:{% if s.is_active %}var(--leaf){% else %}#EF5350{% endif %}">
+                <span style="width:7px;height:7px;border-radius:50%;background:{% if s.is_active %}var(--leaf){% else %}#EF5350{% endif %};display:inline-block"></span>
+                {{ 'Active' if s.is_active else 'Inactive' }}
+              </span>
+            </td>
+            <td style="font-size:.8rem;color:var(--ink-soft)">{{ s.created_at[:10] }}</td>
+            <td>
+              <button class="btn btn-ghost btn-sm"
+                onclick="openEditStaffModal({{ s.id }}, '{{ s.name|e }}', '{{ s.username|e }}', '{{ s.phone or '' }}')">
+                Edit Details
+              </button>
+            </td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="empty">
+      <div class="empty-icon">👤</div>
+      <p>No school staff accounts yet. Use the button above to create one.</p>
+    </div>
+    {% endif %}
+  </div>
+
   <!-- Recent Orders -->
   <div class="card">
     <div class="card-title"><span class="icon">📋</span> All Orders</div>
@@ -77,6 +128,69 @@
     {% else %}
     <div class="empty"><div class="empty-icon">🛒</div><p>No orders placed yet</p></div>
     {% endif %}
+  </div>
+</div>
+
+<!-- ── Add Staff Modal ──────────────────────────────────────────────────────── -->
+<div id="addStaffModal" class="modal-overlay" style="display:none" onclick="if(event.target===this)this.style.display='none'">
+  <div class="modal">
+    <h3>👤 Create School Staff Account</h3>
+    <div class="staff-note">The staff member's name cannot be changed after creation. Please enter it carefully.</div>
+    <form method="POST" action="/principal/staff/add">
+      <div class="form-group">
+        <label>Full Name <span style="color:#EF5350">*</span></label>
+        <input type="text" name="name" placeholder="e.g. Mr. Rajan Kumar" required>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Username <span style="color:#EF5350">*</span></label>
+          <input type="text" name="username" placeholder="Login username" required>
+        </div>
+        <div class="form-group">
+          <label>Phone</label>
+          <input type="tel" name="phone" placeholder="Mobile number">
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Password <span style="color:#EF5350">*</span></label>
+        <input type="password" name="password" placeholder="Min. 4 characters" required minlength="4">
+      </div>
+      <div style="display:flex;gap:.7rem;margin-top:.5rem">
+        <button type="submit" class="btn btn-primary" style="flex:1">Create Staff Account</button>
+        <button type="button" class="btn btn-ghost" onclick="document.getElementById('addStaffModal').style.display='none'">Cancel</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ── Edit Staff Details Modal ─────────────────────────────────────────────── -->
+<div id="editStaffModal" class="modal-overlay" style="display:none" onclick="if(event.target===this)this.style.display='none'">
+  <div class="modal">
+    <h3>✏️ Edit Staff Details</h3>
+    <div class="staff-note">⚠️ Name cannot be changed. Only username, phone, and password are editable here.</div>
+    <p style="font-size:.85rem;color:var(--ink-mid);margin-bottom:1rem">
+      Editing: <strong id="editStaffName"></strong>
+    </p>
+    <form method="POST" id="editStaffForm">
+      <div class="form-row">
+        <div class="form-group">
+          <label>Username <span style="color:#EF5350">*</span></label>
+          <input type="text" name="username" id="editStaffUsername" required>
+        </div>
+        <div class="form-group">
+          <label>Phone</label>
+          <input type="tel" name="phone" id="editStaffPhone" placeholder="Mobile number">
+        </div>
+      </div>
+      <div class="form-group">
+        <label>New Password <span style="font-weight:400;color:var(--ink-soft)">(leave blank to keep current)</span></label>
+        <input type="password" name="password" placeholder="Enter new password or leave blank" minlength="4">
+      </div>
+      <div style="display:flex;gap:.7rem;margin-top:.5rem">
+        <button type="submit" class="btn btn-primary" style="flex:1">Save Changes</button>
+        <button type="button" class="btn btn-ghost" onclick="document.getElementById('editStaffModal').style.display='none'">Cancel</button>
+      </div>
+    </form>
   </div>
 </div>
 
@@ -108,5 +222,13 @@ new Chart(ctx, {
     }
   }
 });
+
+function openEditStaffModal(id, name, username, phone) {
+  document.getElementById('editStaffName').textContent = name;
+  document.getElementById('editStaffUsername').value = username;
+  document.getElementById('editStaffPhone').value = phone;
+  document.getElementById('editStaffForm').action = '/staff/update_details/' + id;
+  document.getElementById('editStaffModal').style.display = 'flex';
+}
 </script>
 {% endblock %}

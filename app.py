@@ -64,8 +64,9 @@ def register():
         role     = request.form['role']
         name     = request.form['name'].strip()
         phone    = request.form.get('phone', '').strip()
-        if role == 'admin':
-            flash('Admin accounts cannot be created via registration.')
+        # school_staff and admin accounts cannot be self-registered
+        if role in ('admin', 'school_staff'):
+            flash('That account type cannot be created via self-registration.')
             return redirect(url_for('register'))
         db = get_db()
         if db.execute('SELECT id FROM users WHERE username=?', (username,)).fetchone():
@@ -116,7 +117,6 @@ def _admin_dashboard(db, user):
         JOIN users u ON o.placed_by = u.id
         ORDER BY o.created_at DESC
     ''').fetchall()
-    # Inventory joined with category name via categories table
     inventory = db.execute('''
         SELECT i.*, c.name AS category, c.icon AS category_icon,
                u.name AS merchant_name
@@ -209,6 +209,62 @@ def admin_reset_password(uid):
     flash('Password reset successfully.')
     return redirect(url_for('dashboard'))
 
+@app.route('/admin/user/edit/<int:uid>', methods=['POST'])
+def admin_user_edit(uid):
+    """Admin can edit ALL fields of any user: name, username, phone, password, role."""
+    guard = require_role('admin')
+    if guard: return guard
+    actor = current_user()
+    db = get_db()
+
+    target = db.execute('SELECT * FROM users WHERE id=?', (uid,)).fetchone()
+    if not target:
+        flash('User not found.')
+        return redirect(url_for('dashboard'))
+    # Prevent admin from changing their own role away from admin
+    if uid == actor['id'] and request.form.get('role') != 'admin':
+        flash('You cannot change your own role.')
+        return redirect(url_for('dashboard'))
+
+    new_username = request.form['username'].strip()
+    new_name     = request.form['name'].strip()
+    new_phone    = request.form.get('phone', '').strip()
+    new_role     = request.form['role']
+    new_pw       = request.form.get('password', '').strip()
+
+    # Username uniqueness check (excluding self)
+    clash = db.execute(
+        'SELECT id FROM users WHERE username=? AND id!=?', (new_username, uid)
+    ).fetchone()
+    if clash:
+        flash('That username is already taken by another user.')
+        return redirect(url_for('dashboard'))
+
+    if new_pw:
+        if len(new_pw) < 4:
+            flash('Password must be at least 4 characters.')
+            return redirect(url_for('dashboard'))
+        db.execute(
+            'UPDATE users SET username=?, name=?, phone=?, role=?, password_hash=? WHERE id=?',
+            (new_username, new_name, new_phone, new_role, hash_password(new_pw), uid)
+        )
+    else:
+        db.execute(
+            'UPDATE users SET username=?, name=?, phone=?, role=? WHERE id=?',
+            (new_username, new_name, new_phone, new_role, uid)
+        )
+
+    # If role changed to merchant and no merchants row exists yet, create one
+    if new_role == 'merchant':
+        exists = db.execute('SELECT id FROM merchants WHERE user_id=?', (uid,)).fetchone()
+        if not exists:
+            db.execute('INSERT INTO merchants (user_id, business_name) VALUES (?,?)',
+                       (uid, new_name))
+
+    db.commit()
+    flash(f"User '{new_username}' updated successfully.")
+    return redirect(url_for('dashboard'))
+
 # ─── Admin: order management ───────────────────────────────────────────────────
 
 @app.route('/admin/order/delete/<int:order_id>', methods=['POST'])
@@ -284,6 +340,105 @@ def admin_category_delete(cat_id):
     flash('Category deleted.')
     return redirect(url_for('dashboard'))
 
+# ─── Principal: staff management ───────────────────────────────────────────────
+
+@app.route('/principal/staff/add', methods=['POST'])
+def principal_staff_add():
+    """Principal and admin can create school_staff accounts."""
+    guard = require_role('principal', 'admin')
+    if guard: return guard
+    db = get_db()
+    username = request.form['username'].strip()
+    name     = request.form['name'].strip()
+    phone    = request.form.get('phone', '').strip()
+    password = request.form['password']
+
+    if not username or not name or not password:
+        flash('Name, username and password are all required.')
+        return redirect(url_for('dashboard'))
+    if len(password) < 4:
+        flash('Password must be at least 4 characters.')
+        return redirect(url_for('dashboard'))
+    if db.execute('SELECT id FROM users WHERE username=?', (username,)).fetchone():
+        flash('Username already taken.')
+        return redirect(url_for('dashboard'))
+
+    db.execute(
+        'INSERT INTO users (username, password_hash, role, name, phone) VALUES (?,?,?,?,?)',
+        (username, hash_password(password), 'school_staff', name, phone)
+    )
+    db.commit()
+    flash(f"Staff account '{username}' created successfully.")
+    return redirect(url_for('dashboard'))
+
+@app.route('/staff/update_details/<int:uid>', methods=['POST'])
+def staff_update_details(uid):
+    """
+    Update username, phone, and optionally password for a school_staff account.
+    Name is NOT editable through this route.
+    Allowed callers:
+      - admin:        any school_staff user
+      - principal:    any school_staff user
+      - school_staff: only their own account
+    """
+    actor = current_user()
+    if not actor:
+        return redirect(url_for('index'))
+
+    db = get_db()
+    target = db.execute('SELECT * FROM users WHERE id=?', (uid,)).fetchone()
+    if not target or target['role'] != 'school_staff':
+        flash('Target user not found or is not school staff.')
+        return redirect(url_for('dashboard'))
+
+    # Permission check
+    if actor['role'] == 'school_staff' and actor['id'] != uid:
+        flash('You can only edit your own account.')
+        return redirect(url_for('dashboard'))
+    if actor['role'] not in ('admin', 'principal', 'school_staff'):
+        flash('Permission denied.')
+        return redirect(url_for('dashboard'))
+
+    new_username = request.form['username'].strip()
+    new_phone    = request.form.get('phone', '').strip()
+    new_pw       = request.form.get('password', '').strip()
+
+    if not new_username:
+        flash('Username cannot be empty.')
+        return redirect(url_for('dashboard'))
+
+    # Username uniqueness check (excluding this user)
+    clash = db.execute(
+        'SELECT id FROM users WHERE username=? AND id!=?', (new_username, uid)
+    ).fetchone()
+    if clash:
+        flash('That username is already taken.')
+        return redirect(url_for('dashboard'))
+
+    if new_pw:
+        if len(new_pw) < 4:
+            flash('Password must be at least 4 characters.')
+            return redirect(url_for('dashboard'))
+        db.execute(
+            'UPDATE users SET username=?, phone=?, password_hash=? WHERE id=?',
+            (new_username, new_phone, hash_password(new_pw), uid)
+        )
+    else:
+        db.execute(
+            'UPDATE users SET username=?, phone=? WHERE id=?',
+            (new_username, new_phone, uid)
+        )
+
+    db.commit()
+
+    # If the logged-in user edited their own record, refresh the session
+    if actor['id'] == uid:
+        updated = db.execute('SELECT * FROM users WHERE id=?', (uid,)).fetchone()
+        session['user'] = dict(updated)
+
+    flash('Staff details updated successfully.')
+    return redirect(url_for('dashboard'))
+
 # ─── Principal dashboard ───────────────────────────────────────────────────────
 
 def _principal_dashboard(db, user):
@@ -314,15 +469,19 @@ def _principal_dashboard(db, user):
         FROM orders WHERE created_at >= date('now','-7 days')
         GROUP BY day ORDER BY day
     ''').fetchall()
+    # Staff list for staff management section
+    staff_list = db.execute(
+        "SELECT id, username, name, phone, is_active, created_at FROM users WHERE role='school_staff' ORDER BY name"
+    ).fetchall()
     return render_template('principal_dashboard.html',
         user=user, orders=orders, total_today=total_today,
         pending=pending, delivered=delivered,
-        top_merchants=top_merchants, recent_spend=recent_spend)
+        top_merchants=top_merchants, recent_spend=recent_spend,
+        staff_list=staff_list)
 
 # ─── Staff dashboard ───────────────────────────────────────────────────────────
 
 def _staff_dashboard(db, user):
-    # Inventory with category name + icon from categories table
     items = db.execute('''
         SELECT i.*, c.name AS category, c.icon AS category_icon,
                u.name AS merchant_name, u.phone AS merchant_phone

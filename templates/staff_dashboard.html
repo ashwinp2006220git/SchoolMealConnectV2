@@ -23,6 +23,8 @@
 .filter-bar{display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:1rem}
 .filter-btn{padding:.35rem .8rem;border-radius:20px;font-size:.8rem;font-weight:600;cursor:pointer;border:1.5px solid var(--border);background:var(--card);color:var(--ink-mid);transition:all .2s}
 .filter-btn.active,.filter-btn:hover{background:var(--ink);color:#fff;border-color:var(--ink)}
+.account-grid{display:grid;grid-template-columns:1fr 1fr;gap:.8rem}
+@media(max-width:540px){.account-grid{grid-template-columns:1fr}}
 </style>
 {% endblock %}
 {% block content %}
@@ -56,7 +58,7 @@
         </div>
       </div>
 
-      <!-- Category Filter — built from the normalised categories table -->
+      <!-- Category Filter -->
       <div class="filter-bar">
         <button class="filter-btn active" onclick="filterCat(this,'all')">All Items</button>
         {% for cat in categories %}
@@ -140,6 +142,31 @@
     {% else %}
     <div class="empty"><div class="empty-icon">📋</div><p>No orders placed yet. Browse items above to get started.</p></div>
     {% endif %}
+  </div>
+
+  <!-- ── My Account ────────────────────────────────────────────────────────── -->
+  <div class="card" style="margin-top:1.8rem">
+    <div class="card-title"><span class="icon">⚙️</span> My Account Details</div>
+    <p style="font-size:.85rem;color:var(--ink-mid);margin-bottom:1.2rem">
+      You can update your login username, phone number, and password. Your name ({{ user.name }}) is managed by your principal.
+    </p>
+    <form method="POST" action="/staff/update_details/{{ user.id }}">
+      <div class="account-grid">
+        <div class="form-group">
+          <label>Username</label>
+          <input type="text" name="username" value="{{ user.username }}" required>
+        </div>
+        <div class="form-group">
+          <label>Phone</label>
+          <input type="tel" name="phone" value="{{ user.phone or '' }}" placeholder="Mobile number">
+        </div>
+      </div>
+      <div class="form-group" style="max-width:320px">
+        <label>New Password <span style="font-weight:400;color:var(--ink-soft)">(leave blank to keep current)</span></label>
+        <input type="password" name="password" placeholder="Enter new password or leave blank" minlength="4">
+      </div>
+      <button type="submit" class="btn btn-primary" style="width:auto;padding:.65rem 1.8rem">Save Changes</button>
+    </form>
   </div>
 </div>
 
