@@ -85,6 +85,11 @@ export SECRET_KEY=your-secure-random-key
 ```
 ## REPORT
 ### Agnivesh S Nair:
+
+In this project,I worked on the Inventory and Orders Module.My work included adding food items,managing stock,sorting Inventory,placing orders and displaying order details. I developed the Merchant Dashboard, Staff Dashboard, and Order Page.
+
+Through this project, I gained practical experience in Flask, SQLite, HTML, CSS, and JavaScript. I also learned how inventory management and order processing systems work, and how data is stored and retrieved from a database.
+
 ### Aaron Philip Paeton:
 
 
