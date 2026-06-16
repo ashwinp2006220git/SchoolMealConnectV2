@@ -58,6 +58,39 @@
         </div>
       </div>
 
+      <!-- Vendor Search -->
+      <div class="vendor-search-wrap" style="margin-bottom:1rem;position:relative">
+        <div style="display:flex;gap:.5rem;align-items:center">
+          <div style="position:relative;flex:1">
+            <input
+              type="text"
+              id="vendorSearchInput"
+              placeholder="🔍 Search items or filter by vendor…"
+              oninput="handleVendorSearch(this.value)"
+              onfocus="openVendorDropdown()"
+              autocomplete="off"
+              style="width:100%;padding:.6rem 1rem .6rem 1rem;border:1.5px solid var(--border);border-radius:8px;font-size:.88rem;font-family:inherit;color:var(--ink);background:var(--card);transition:border-color .2s,box-shadow .2s"
+            >
+            <div
+              id="vendorDropdown"
+              style="display:none;position:absolute;top:calc(100% + 4px);left:0;right:0;background:var(--card);border:1.5px solid var(--leaf);border-radius:10px;box-shadow:0 6px 24px rgba(0,0,0,.12);z-index:50;max-height:260px;overflow-y:auto"
+            >
+              <div style="padding:.45rem .8rem;font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--ink-soft);border-bottom:1px solid var(--border)">All Vendors</div>
+              <div id="vendorList"></div>
+            </div>
+          </div>
+          <button
+            class="btn btn-ghost btn-sm"
+            onclick="clearVendorFilter()"
+            id="vendorClearBtn"
+            style="display:none;white-space:nowrap"
+          >✕ Clear</button>
+        </div>
+        <div id="vendorFilterBadge" style="display:none;margin-top:.45rem;font-size:.8rem;color:var(--leaf);font-weight:600">
+          Showing items from: <span id="vendorFilterLabel" style="background:var(--leaf-lt);padding:.15rem .55rem;border-radius:20px"></span>
+        </div>
+      </div>
+
       <!-- Category Filter -->
       <div class="filter-bar">
         <button class="filter-btn active" onclick="filterCat(this,'all')">All Items</button>
@@ -142,32 +175,7 @@
     {% else %}
     <div class="empty"><div class="empty-icon">📋</div><p>No orders placed yet. Browse items above to get started.</p></div>
     {% endif %}
-  </div>
-
-  <!-- ── My Account ────────────────────────────────────────────────────────── -->
-  <div class="card" style="margin-top:1.8rem">
-    <div class="card-title"><span class="icon">⚙️</span> My Account Details</div>
-    <p style="font-size:.85rem;color:var(--ink-mid);margin-bottom:1.2rem">
-      You can update your login username, phone number, and password. Your name ({{ user.name }}) is managed by your principal.
-    </p>
-    <form method="POST" action="/staff/update_details/{{ user.id }}">
-      <div class="account-grid">
-        <div class="form-group">
-          <label>Username</label>
-          <input type="text" name="username" value="{{ user.username }}" required>
-        </div>
-        <div class="form-group">
-          <label>Phone</label>
-          <input type="tel" name="phone" value="{{ user.phone or '' }}" placeholder="Mobile number">
-        </div>
-      </div>
-      <div class="form-group" style="max-width:320px">
-        <label>New Password <span style="font-weight:400;color:var(--ink-soft)">(leave blank to keep current)</span></label>
-        <input type="password" name="password" placeholder="Enter new password or leave blank" minlength="4">
-      </div>
-      <button type="submit" class="btn btn-primary" style="width:auto;padding:.65rem 1.8rem">Save Changes</button>
-    </form>
-  </div>
+  </div>  
 </div>
 
 <script>
@@ -301,5 +309,122 @@ function getAISuggestions() {
     ).join('');
   });
 }
+
+/* ── Vendor search & dropdown ─────────────────────────────────────────────── */
+
+let allVendors = [];       // [{id, name, phone}]
+let activeVendorId = null; // null = show all
+
+// Build vendor list once from the rendered item cards
+(function buildVendorList() {
+  const seen = new Map();
+  document.querySelectorAll('.item-card').forEach(card => {
+    const merchant = card.querySelector('.item-merchant');
+    if (!merchant) return;
+    // text is "by Vendor Name"
+    const name = merchant.textContent.replace(/^by\s+/, '').trim();
+    if (!seen.has(name)) seen.set(name, name);
+  });
+  allVendors = Array.from(seen.keys()).map(name => ({ name }));
+  renderVendorList('');
+})();
+
+function renderVendorList(query) {
+  const list = document.getElementById('vendorList');
+  const q = query.toLowerCase().trim();
+  const filtered = q
+    ? allVendors.filter(v => v.name.toLowerCase().includes(q))
+    : allVendors;
+
+  if (!filtered.length) {
+    list.innerHTML = '<div style="padding:.7rem 1rem;font-size:.84rem;color:var(--ink-soft)">No vendors found</div>';
+    return;
+  }
+  list.innerHTML = filtered.map(v => `
+    <div class="vendor-option"
+         onclick="selectVendor('${v.name.replace(/'/g,"\\'")}', this)"
+         style="padding:.6rem 1rem;font-size:.86rem;cursor:pointer;transition:background .15s;display:flex;align-items:center;justify-content:space-between;gap:.5rem">
+      <span style="font-weight:500;color:var(--ink)">🥬 ${v.name}</span>
+      <span style="font-size:.74rem;color:var(--ink-soft);background:var(--bg);padding:.1rem .4rem;border-radius:4px">${countItemsForVendor(v.name)} items</span>
+    </div>
+  `).join('');
+
+  // hover styles via JS (avoids needing extra CSS in base)
+  list.querySelectorAll('.vendor-option').forEach(el => {
+    el.addEventListener('mouseenter', () => el.style.background = 'var(--leaf-lt)');
+    el.addEventListener('mouseleave', () => el.style.background = '');
+  });
+}
+
+function countItemsForVendor(vendorName) {
+  let count = 0;
+  document.querySelectorAll('.item-card').forEach(card => {
+    const m = card.querySelector('.item-merchant');
+    if (m && m.textContent.replace(/^by\s+/, '').trim() === vendorName) count++;
+  });
+  return count;
+}
+
+function openVendorDropdown() {
+  const dd = document.getElementById('vendorDropdown');
+  dd.style.display = 'block';
+  renderVendorList(document.getElementById('vendorSearchInput').value);
+}
+
+function handleVendorSearch(val) {
+  openVendorDropdown();
+  renderVendorList(val);
+  // If user cleared the text, also clear vendor filter
+  if (!val.trim() && activeVendorId === null) {
+    applyVendorFilter(null);
+  }
+}
+
+function selectVendor(vendorName, el) {
+  document.getElementById('vendorSearchInput').value = vendorName;
+  document.getElementById('vendorDropdown').style.display = 'none';
+  applyVendorFilter(vendorName);
+}
+
+function applyVendorFilter(vendorName) {
+  activeVendorId = vendorName;
+  const badge  = document.getElementById('vendorFilterBadge');
+  const label  = document.getElementById('vendorFilterLabel');
+  const clear  = document.getElementById('vendorClearBtn');
+
+  document.querySelectorAll('.item-card').forEach(card => {
+    if (!vendorName) {
+      card.style.display = '';
+      return;
+    }
+    const m = card.querySelector('.item-merchant');
+    const match = m && m.textContent.replace(/^by\s+/, '').trim() === vendorName;
+    card.style.display = match ? '' : 'none';
+  });
+
+  if (vendorName) {
+    label.textContent = vendorName;
+    badge.style.display = 'block';
+    clear.style.display = 'inline-flex';
+  } else {
+    badge.style.display = 'none';
+    clear.style.display = 'none';
+  }
+}
+
+function clearVendorFilter() {
+  document.getElementById('vendorSearchInput').value = '';
+  document.getElementById('vendorDropdown').style.display = 'none';
+  applyVendorFilter(null);
+  renderVendorList('');
+}
+
+// Close dropdown when clicking outside
+document.addEventListener('click', function(e) {
+  const wrap = document.querySelector('.vendor-search-wrap');
+  if (wrap && !wrap.contains(e.target)) {
+    document.getElementById('vendorDropdown').style.display = 'none';
+  }
+});
 </script>
 {% endblock %}

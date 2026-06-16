@@ -10,6 +10,19 @@ app.secret_key = os.environ.get('SECRET_KEY', 'schoolmeal-dev-secret-2024')
 def setup():
     init_db()
 
+@app.after_request
+def add_no_cache_headers(response):
+    """
+    Prevent the browser from caching any authenticated page.
+    This stops the back-button from showing stale protected content
+    after the user has logged out (or before they have logged in).
+    """
+    if current_user():
+        response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+        response.headers['Pragma'] = 'no-cache'
+        response.headers['Expires'] = '0'
+    return response
+
 def hash_password(pw):
     return hashlib.sha256(pw.encode()).hexdigest()
 
