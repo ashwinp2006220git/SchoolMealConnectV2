@@ -81,5 +81,23 @@ The `/ai/suggest` endpoint uses a weighted model:
 For production, set the environment variable:
 ```bash
 export SECRET_KEY=your-secure-random-key
+
 ```
-And replace SQLite with PostgreSQL by updating `database.py`.
+## REPORT
+### Agnivesh S Nair:
+
+In this project,I worked on the Inventory and Orders Module.My work included adding food items,managing stock,sorting Inventory,placing orders and displaying order details. I developed the Merchant Dashboard, Staff Dashboard, and Order Page.
+
+Through this project, I gained practical experience in Flask, SQLite, HTML, CSS, and JavaScript. I also learned how inventory management and order processing systems work, and how data is stored and retrieved from a database.
+
+### Aaron Philip Paeton:
+
+In this project,I worked on monitoring and delivery parts.This includes features such as viewing all orders ,updating delivery status,monitoring suppliers and a chart analysing total amount.I also developed dashboards for principal and delivery users 
+
+Through this,i gained a better  understanding on how dashboards are designed,how data can be retrieved from databases and displayed using charts.This project also helped me in gaining practical experience in Flask, SQLite,HTML,CSS and JavaScript
+
+### Ashwin P:
+
+In this project, I worked on the user management and authentication part. This includes features such as user login, registration,  password and phone number updates and role-based access for Admin, Principal, Staff, Merchant, and Delivery users. I also developed pages for login, registration, and admin user management.
+
+Through this, I gained a better understanding of how secure authentication systems are built, how role-based permissions work, and how user data is managed in databases. This project also helped me in  gaining practical experience in Flask, SQLite, HTML, CSS, and JavaScript.
