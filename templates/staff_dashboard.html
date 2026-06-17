@@ -2,6 +2,9 @@
 {% block title %}Staff Dashboard — SchoolMeal Connect{% endblock %}
 {% block extra_head %}
 <style>
+.dashboard-nav{display:flex;gap:1rem;margin-bottom:1.5rem;border-bottom:2px solid var(--border);padding-bottom:.5rem}
+.nav-tab{padding:.5rem 1.2rem;border-radius:8px;font-size:.9rem;font-weight:700;cursor:pointer;border:none;background:transparent;color:var(--ink-soft);transition:all .2s;display:flex;align-items:center;gap:.4rem}
+.nav-tab.active{background:var(--ink);color:#fff}
 .item-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:.9rem;margin-top:.8rem}
 .item-card{background:var(--card);border:1.5px solid var(--border);border-radius:10px;padding:1rem;transition:border-color .2s,box-shadow .2s;cursor:pointer}
 .item-card:hover{border-color:var(--leaf);box-shadow:0 2px 12px rgba(45,122,79,.12)}
@@ -17,203 +20,225 @@
 .qty-input{width:60px;padding:.3rem .5rem;border:1.5px solid var(--border);border-radius:6px;font-size:.85rem;text-align:center}
 .ai-box{background:linear-gradient(135deg,#EBF4FB 0%,#E8F5E9 100%);border:1px solid #B3D9F7;border-radius:10px;padding:1.2rem;margin-bottom:1.2rem}
 .ai-title{font-size:.82rem;font-weight:700;color:var(--sky);text-transform:uppercase;letter-spacing:.5px;margin-bottom:.6rem;display:flex;align-items:center;gap:.4rem}
-.ai-chips{display:flex;flex-wrap:wrap;gap:.4rem}
-.ai-chip{background:#fff;border:1px solid #B3D9F7;border-radius:6px;padding:.3rem .7rem;font-size:.79rem;cursor:pointer;transition:all .2s;color:var(--ink-mid)}
-.ai-chip:hover{background:var(--sky);color:#fff;border-color:var(--sky)}
-.filter-bar{display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:1rem}
+.filter-bar{display:flex;gap:.5rem;flex-wrap:wrap}
 .filter-btn{padding:.35rem .8rem;border-radius:20px;font-size:.8rem;font-weight:600;cursor:pointer;border:1.5px solid var(--border);background:var(--card);color:var(--ink-mid);transition:all .2s}
 .filter-btn.active,.filter-btn:hover{background:var(--ink);color:#fff;border-color:var(--ink)}
-.account-grid{display:grid;grid-template-columns:1fr 1fr;gap:.8rem}
-@media(max-width:540px){.account-grid{grid-template-columns:1fr}}
+
+/* Custom Searchable Dropdown Layout Elements */
+.searchable-dropdown {position:relative;display:inline-block;width:230px}
+.dropdown-trigger {padding:.4rem 2rem .4rem .9rem;border-radius:20px;font-size:.8rem;font-weight:600;border:1.5px solid var(--border);background:var(--card);color:var(--ink-mid);cursor:pointer;position:relative;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;transition:border-color .2s}
+.dropdown-trigger:hover {border-color:var(--ink)}
+.dropdown-trigger::after {content:"";position:absolute;right:.8rem;top:50%;transform:translateY(-50%);width:10px;height:6px;background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6' fill='none'><path stroke='%23666' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round' d='m1 1 4 4 4-4'/></svg>");background-repeat:no-repeat}
+.dropdown-panel {display:none;position:absolute;top:100%;left:0;right:0;background:var(--card);border:1.5px solid var(--ink);border-radius:12px;margin-top:.4rem;z-index:110;box-shadow:0 4px 16px rgba(0,0,0,0.12);padding:.4rem}
+.dropdown-panel.open {display:block}
+.dropdown-search-box {width:100%;padding:.35rem .6rem;border-radius:6px;border:1px solid var(--border);font-size:.8rem;margin-bottom:.4rem;outline:none;box-sizing:border-box}
+.dropdown-search-box:focus {border-color:var(--ink)}
+.dropdown-options-list {max-height:170px;overflow-y:auto}
+.dropdown-opt {padding:.4rem .6rem;font-size:.8rem;border-radius:6px;cursor:pointer;color:var(--ink-mid);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dropdown-opt:hover {background:var(--bg-light);color:var(--ink)}
+.dropdown-opt.selected {background:var(--ink);color:#fff}
+
+.vendor-select{padding:.35rem 1.8rem .35rem .8rem;border-radius:20px;font-size:.8rem;font-weight:600;border:1.5px solid var(--border);background:var(--card);color:var(--ink-mid);cursor:pointer;outline:none;appearance:none;-webkit-appearance:none;background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6' fill='none'><path stroke='%23666' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round' d='m1 1 4 4 4-4'/></svg>");background-repeat:no-repeat;background-position:right .75rem center}
+.flash-msg{padding:.75rem 1rem;border-radius:8px;margin-bottom:1rem;font-size:.88rem;display:flex;align-items:flex-start;gap:.5rem}
+.flash-info{background:#EBF4FB;border:1px solid #B3D9F7;color:#1A4A72}
+.flash-success{background:var(--leaf-lt);border:1px solid #A5D6A7;color:#1B5E20}
 </style>
 {% endblock %}
 {% block content %}
 <div class="page">
   <div class="page-header">
-    <h1>🛒 Place Today's Order</h1>
-    <p>Browse available stock and build your procurement list — {{ user.name }}</p>
+    <h1>Dashboard Control Center</h1>
+    <p>Manage procurement workflows, track vendor logs, and verify compliance structures — {{ user.name }}</p>
   </div>
 
-  <div style="display:grid;grid-template-columns:1fr 320px;gap:1.5rem;align-items:start">
-    <!-- LEFT: items + AI -->
-    <div>
-      <!-- AI Suggestions -->
-      <div class="ai-box">
-        <div class="ai-title">🤖 AI Demand Suggestions</div>
-        <div style="display:flex;align-items:center;gap:.8rem;margin-bottom:.7rem">
-          <label style="font-size:.83rem;font-weight:600;color:var(--ink-mid)">Today's attendance:</label>
-          <input type="number" id="attendanceInput" value="200" min="1" max="2000" style="width:90px;padding:.35rem .6rem;border-radius:6px;border:1.5px solid #B3D9F7;font-size:.88rem">
-          <button class="btn btn-sky btn-sm" onclick="getAISuggestions()">Get Suggestions</button>
+  <!-- Primary Dashboard Options / Navigation Tabs -->
+  <div class="dashboard-nav">
+    <button class="nav-tab active" id="tab-shop" onclick="switchView('shop')">🛒 Create New Order</button>
+    <button class="nav-tab" id="tab-orders" onclick="switchView('orders')">📋 Order Management & Logs</button>
+  </div>
+
+  <!-- OPTION 1: Marketplace Procurement Interface -->
+  <div id="view-shop" class="view-panel">
+    <div style="display:grid;grid-template-columns:1fr 320px;gap:1.5rem;align-items:start">
+      <!-- LEFT: Items Inventory Matrix -->
+      <div>
+        <!-- AI Suggestions Core -->
+        <div class="ai-box">
+          <div class="ai-title">🤖 AI Demand Suggestions</div>
+          <p style="font-size:.85rem;color:var(--ink-mid);margin-bottom:.8rem;line-height:1.5">
+            Get PM POSHAN-compliant procurement quantities split by class group (Primary I–V / Upper Primary VI–VIII), weighted with attendance history, and cross-checked against live merchant stock.
+          </p>
+          <a href="{{ url_for('ai_planner') }}" class="btn btn-sky btn-sm">🔬 Open Full AI Food Planner →</a>
         </div>
-        <div id="aiChips" class="ai-chips">
-          {% if ai_suggestions %}
-            {% for s in ai_suggestions %}
-            <span class="ai-chip" onclick="addFromAI('{{ s.item_name }}', {{ s.suggested_qty }}, '{{ s.unit }}')">
-              <strong>{{ s.item_name }}</strong> — {{ s.suggested_qty }} {{ s.unit }}
-            </span>
+
+        <!-- Combined Dynamic Filter Utility with Inline Dropdown Search -->
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:1rem;margin-bottom:1.2rem;background:var(--bg-light);padding:.6rem .8rem;border-radius:12px;border:1px solid var(--border)">
+          <!-- Categories -->
+          <div class="filter-bar">
+            <button class="filter-btn active" onclick="filterCat(this,'all')">All Items</button>
+            <button class="filter-btn" onclick="filterCat(this,'Vegetables')">🥬 Vegetables</button>
+            <button class="filter-btn" onclick="filterCat(this,'Grains')">🌾 Grains</button>
+            <button class="filter-btn" onclick="filterCat(this,'Spices')">🌶 Spices</button>
+            <button class="filter-btn" onclick="filterCat(this,'Oils')">🫙 Oils</button>
+          </div>
+
+          <!-- Merchant Search Selector Wrapper Container -->
+          <div style="display:flex;align-items:center;gap:.5rem">
+            <span style="font-size:.78rem;font-weight:700;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.3px">🏪 Merchant:</span>
+            
+            <div class="searchable-dropdown" id="merchantDropdown">
+              <div class="dropdown-trigger" id="dropdownTriggerBtn" onclick="toggleMerchantDropdown(event)">All Vendors / Merchants</div>
+              <div class="dropdown-panel" id="dropdownPanelWindow">
+                <!-- Live text input box nested inside the filter array window itself -->
+                <input type="text" id="innerDropdownSearch" class="dropdown-search-box" onkeyup="handleDropdownSearch(this.value)" placeholder="Search merchant..." onclick="event.stopPropagation()">
+                <div class="dropdown-options-list" id="dropdownOptionsContainer">
+                  <div class="dropdown-opt selected" data-value="all" onclick="selectMerchantOption('all', 'All Vendors / Merchants')">All Vendors / Merchants</div>
+                  {% if items %}
+                    {% set unique_vendors = items | map(attribute='merchant_name') | unique | list %}
+                    {% for vendor in unique_vendors %}
+                      <div class="dropdown-opt" data-value="{{ vendor|e }}" onclick="selectMerchantOption('{{ vendor|e }}', '{{ vendor|e }}')">{{ vendor }}</div>
+                    {% endfor %}
+                  {% endif %}
+                </div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- Dynamic Items Display Grid -->
+        <div class="item-grid" id="itemGrid">
+          {% if items %}
+            {% for item in items %}
+            <div class="item-card" id="card-{{ item.id }}" data-cat="{{ item.category }}" data-merchant="{{ item.merchant_name|e }}"
+                 onclick="toggleItem({{ item.id }}, '{{ item.item_name|e }}', {{ item.price_per_unit }}, '{{ item.unit }}', {{ item.quantity }})">
+              <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:.4rem">
+                <span class="chip chip-{{ item.category }}">{{ item.category }}</span>
+                <span class="item-stock">{{ item.quantity }} {{ item.unit }} left</span>
+              </div>
+              <div class="item-name">{{ item.item_name }}</div>
+              <div class="item-merchant">by {{ item.merchant_name }}</div>
+              <div>
+                <span class="item-price">₹{{ "%.2f"|format(item.price_per_unit) }}</span>
+                <span class="item-unit"> / {{ item.unit }}</span>
+              </div>
+            </div>
             {% endfor %}
           {% else %}
-            <span style="font-size:.83rem;color:var(--ink-soft)">Enter attendance and click "Get Suggestions" to see AI-recommended quantities</span>
+            <div class="empty" style="grid-column:1/-1"><div class="empty-icon">🏪</div><p>No items available right now. Merchants haven't updated their stock yet.</p></div>
           {% endif %}
         </div>
       </div>
 
-      <!-- Vendor Search -->
-      <div class="vendor-search-wrap" style="margin-bottom:1rem;position:relative">
-        <div style="display:flex;gap:.5rem;align-items:center">
-          <div style="position:relative;flex:1">
-            <input
-              type="text"
-              id="vendorSearchInput"
-              placeholder="🔍 Search items or filter by vendor…"
-              oninput="handleVendorSearch(this.value)"
-              onfocus="openVendorDropdown()"
-              autocomplete="off"
-              style="width:100%;padding:.6rem 1rem .6rem 1rem;border:1.5px solid var(--border);border-radius:8px;font-size:.88rem;font-family:inherit;color:var(--ink);background:var(--card);transition:border-color .2s,box-shadow .2s"
-            >
-            <div
-              id="vendorDropdown"
-              style="display:none;position:absolute;top:calc(100% + 4px);left:0;right:0;background:var(--card);border:1.5px solid var(--leaf);border-radius:10px;box-shadow:0 6px 24px rgba(0,0,0,.12);z-index:50;max-height:260px;overflow-y:auto"
-            >
-              <div style="padding:.45rem .8rem;font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--ink-soft);border-bottom:1px solid var(--border)">All Vendors</div>
-              <div id="vendorList"></div>
-            </div>
+      <!-- RIGHT: Interactive Order Cart -->
+      <div class="cart-panel">
+        <div class="card-title" style="font-family:'Sora',sans-serif;font-size:1rem;font-weight:700;margin-bottom:1rem">
+          🛒 Order Cart <span id="cartCount" style="background:var(--saffron);color:#fff;padding:.1rem .5rem;border-radius:20px;font-size:.75rem;margin-left:.3rem">0</span>
+        </div>
+        <div id="cartItems">
+          <div class="empty"><div class="empty-icon" style="font-size:1.5rem">🛒</div><p style="font-size:.82rem">Tap items to add to cart</p></div>
+        </div>
+        <div id="cartTotal" style="display:none;border-top:2px solid var(--border);padding-top:.8rem;margin-top:.8rem">
+          <div style="display:flex;justify-content:space-between;font-weight:700;font-size:1rem">
+            <span>Total</span>
+            <span id="totalAmt" style="color:var(--saffron);font-family:'Sora',sans-serif">₹0.00</span>
           </div>
-          <button
-            class="btn btn-ghost btn-sm"
-            onclick="clearVendorFilter()"
-            id="vendorClearBtn"
-            style="display:none;white-space:nowrap"
-          >✕ Clear</button>
         </div>
-        <div id="vendorFilterBadge" style="display:none;margin-top:.45rem;font-size:.8rem;color:var(--leaf);font-weight:600">
-          Showing items from: <span id="vendorFilterLabel" style="background:var(--leaf-lt);padding:.15rem .55rem;border-radius:20px"></span>
+        <div class="form-group" style="margin-top:1rem">
+          <label>Notes / Special instructions</label>
+          <textarea id="orderNotes" placeholder="Any special requirements…" rows="2"></textarea>
         </div>
+        <button class="btn btn-primary btn-full" onclick="placeOrder()" id="placeBtn" disabled>Place Order</button>
       </div>
-
-      <!-- Category Filter -->
-      <div class="filter-bar">
-        <button class="filter-btn active" onclick="filterCat(this,'all')">All Items</button>
-        {% for cat in categories %}
-        <button class="filter-btn" onclick="filterCat(this,'{{ cat.name }}')">{{ cat.icon }} {{ cat.name }}</button>
-        {% endfor %}
-      </div>
-
-      <!-- Item Cards -->
-      <div class="item-grid" id="itemGrid">
-        {% if items %}
-          {% for item in items %}
-          <div class="item-card" id="card-{{ item.id }}" data-cat="{{ item.category }}"
-               onclick="toggleItem({{ item.id }}, '{{ item.item_name|e }}', {{ item.price_per_unit }}, '{{ item.unit }}', {{ item.quantity }})">
-            <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:.4rem">
-              <span class="chip chip-{{ item.category }}">{{ item.category_icon }} {{ item.category }}</span>
-              <span class="item-stock">{{ item.quantity }} {{ item.unit }} left</span>
-            </div>
-            <div class="item-name">{{ item.item_name }}</div>
-            <div class="item-merchant">by {{ item.merchant_name }}</div>
-            <div>
-              <span class="item-price">₹{{ "%.2f"|format(item.price_per_unit) }}</span>
-              <span class="item-unit"> / {{ item.unit }}</span>
-            </div>
-          </div>
-          {% endfor %}
-        {% else %}
-          <div class="empty" style="grid-column:1/-1"><div class="empty-icon">🏪</div><p>No items available right now. Merchants haven't updated their stock yet.</p></div>
-        {% endif %}
-      </div>
-    </div>
-
-    <!-- RIGHT: Cart -->
-    <div class="cart-panel">
-      <div class="card-title" style="font-family:'Sora',sans-serif;font-size:1rem;font-weight:700;margin-bottom:1rem">
-        🛒 Order Cart <span id="cartCount" style="background:var(--saffron);color:#fff;padding:.1rem .5rem;border-radius:20px;font-size:.75rem;margin-left:.3rem">0</span>
-      </div>
-      <div id="cartItems">
-        <div class="empty"><div class="empty-icon" style="font-size:1.5rem">🛒</div><p style="font-size:.82rem">Tap items to add to cart</p></div>
-      </div>
-      <div id="cartTotal" style="display:none;border-top:2px solid var(--border);padding-top:.8rem;margin-top:.8rem">
-        <div style="display:flex;justify-content:space-between;font-weight:700;font-size:1rem">
-          <span>Total</span>
-          <span id="totalAmt" style="color:var(--saffron);font-family:'Sora',sans-serif">₹0.00</span>
-        </div>
-      </div>
-      <div class="form-group" style="margin-top:1rem">
-        <label>Notes / Special instructions</label>
-        <textarea id="orderNotes" placeholder="Any special requirements…" rows="2"></textarea>
-      </div>
-      <button class="btn btn-primary btn-full" onclick="placeOrder()" id="placeBtn" disabled>Place Order</button>
     </div>
   </div>
 
-  <!-- My Orders -->
-  <div class="card" style="margin-top:1.8rem">
-    <div class="card-title"><span class="icon">📋</span> My Recent Orders</div>
-    {% if my_orders %}
-    <div class="table-wrap">
-      <table>
-        <thead><tr><th>Order #</th><th>Date</th><th>Amount</th><th>Status</th><th></th></tr></thead>
-        <tbody>
-        {% for o in my_orders %}
-          <tr>
-            <td><strong>#{{ o.id }}</strong></td>
-            <td style="font-size:.83rem;color:var(--ink-mid)">{{ o.created_at[:16] }}</td>
-            <td><strong>₹{{ "%.2f"|format(o.total_amount) }}</strong></td>
-            <td><span class="badge badge-{{ o.status }}">{{ o.status.replace('_',' ').title() }}</span></td>
-            <td>
-              <a href="/order/{{ o.id }}" class="btn btn-ghost btn-sm">View</a>
-              {% if o.status == 'pending' %}
-              <form method="POST" action="/order/confirm/{{ o.id }}" style="display:inline">
-                <button type="submit" class="btn btn-primary btn-sm">Confirm</button>
-              </form>
-              {% endif %}
-            </td>
-          </tr>
-        {% endfor %}
-        </tbody>
-      </table>
+  <!-- OPTION 2: Orders Tracking & History Logs Dashboard -->
+  <div id="view-orders" class="view-panel" style="display:none">
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:1rem;margin-bottom:1.2rem;border-bottom:1px solid var(--border);padding-bottom:1rem">
+        <div class="card-title" style="margin:0"><span class="icon">📋</span> Centralized Procurement Logs</div>
+        
+        <!-- Order-Specific Status Filter Option -->
+        <div style="display:flex;align-items:center;gap:.5rem">
+          <span style="font-size:.78rem;font-weight:700;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.3px">Filter Status:</span>
+          <select class="vendor-select" id="orderStatusFilter" onchange="filterOrderStatus(this.value)">
+            <option value="all">All Document Actions</option>
+            <option value="pending">Pending Verification</option>
+            <option value="confirmed">Confirmed / Active</option>
+          </select>
+        </div>
+      </div>
+
+      {% if my_orders %}
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Order #</th>
+              <th>Date Issued</th>
+              <th>Total Amount</th>
+              <th>Operational Status</th>
+              <th>System Actions</th>
+            </tr>
+          </thead>
+          <tbody id="ordersTableBody">
+          {% for o in my_orders %}
+            <tr data-status="{{ o.status|lower }}">
+              <td><strong>#{{ o.id }}</strong></td>
+              <td style="font-size:.83rem;color:var(--ink-mid)">{{ o.created_at[:16] }}</td>
+              <td><strong>₹{{ "%.2f"|format(o.total_amount) }}</strong></td>
+              <td><span class="badge badge-{{ o.status }}">{{ o.status.replace('_',' ').title() }}</span></td>
+              <td>
+                <a href="/order/{{ o.id }}" class="btn btn-ghost btn-sm">View Manifest</a>
+                {% if o.status == 'pending' %}
+                <form method="POST" action="/order/confirm/{{ o.id }}" style="display:inline">
+                  <button type="submit" class="btn btn-primary btn-sm">Confirm Receipt</button>
+                </form>
+                {% endif %}
+              </td>
+            </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <div class="empty"><div class="empty-icon">📋</div><p>No processed orders linked to this institution card yet.</p></div>
+      {% endif %}
     </div>
-    {% else %}
-    <div class="empty"><div class="empty-icon">📋</div><p>No orders placed yet. Browse items above to get started.</p></div>
-    {% endif %}
-  </div>  
+  </div>
 </div>
 
 <script>
 const cart = {};
 const prices = {};
 const units = {};
-const stockLimits = {};
+const names = {};
+
+// Viewport and Matrix Filtering State Engine
+let activeCategory = 'all';
+let activeVendor = 'all';
+
+function switchView(viewName) {
+  document.querySelectorAll('.nav-tab').forEach(tab => tab.classList.remove('active'));
+  document.querySelectorAll('.view-panel').forEach(panel => panel.style.display = 'none');
+  
+  document.getElementById(`tab-${viewName}`).classList.add('active');
+  document.getElementById(`view-${viewName}`).style.display = 'block';
+}
 
 function toggleItem(id, name, price, unit, stock) {
-  stockLimits[id] = stock;
   if (cart[id]) {
-    delete cart[id]; delete prices[id]; delete units[id];
+    delete cart[id]; delete prices[id]; delete units[id]; delete names[id];
     document.getElementById('card-'+id).classList.remove('in-cart');
   } else {
     cart[id] = Math.min(1, stock);
     prices[id] = price;
     units[id] = unit;
+    names[id] = name;
     document.getElementById('card-'+id).classList.add('in-cart');
   }
   renderCart();
-}
-
-function addFromAI(name, qty, unit) {
-  fetch('/api/inventory').then(r=>r.json()).then(items => {
-    const match = items.find(i => i.item_name.toLowerCase().includes(name.toLowerCase()));
-    if (match) {
-      const safeQty = Math.min(qty, match.quantity);
-      stockLimits[match.id] = match.quantity;
-      cart[match.id] = safeQty;
-      prices[match.id] = match.price_per_unit;
-      units[match.id] = match.unit;
-      const el = document.getElementById('card-'+match.id);
-      if(el) el.classList.add('in-cart');
-      renderCart();
-    } else {
-      alert(`'${name}' is not currently in stock from any merchant.`);
-    }
-  });
 }
 
 function renderCart() {
@@ -233,12 +258,13 @@ function renderCart() {
     const qty = parseFloat(cart[id]);
     const subtotal = qty * prices[id];
     total += subtotal;
-    const maxStock = stockLimits[id] || 9999;
     html += `<div class="cart-item-row" id="ci-${id}">
-      <div style="flex:1;min-width:0"><div style="font-weight:600;font-size:.83rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" id="cn-${id}">Item #${id}</div>
-      <div style="font-size:.75rem;color:var(--ink-soft)">₹${prices[id].toFixed(2)} / ${units[id]} &nbsp;·&nbsp; max ${maxStock} ${units[id]}</div></div>
-      <input class="qty-input" type="number" value="${qty}" min="0.1" step="0.5" max="${maxStock}"
-             onchange="updateQty(${id}, this.value, ${maxStock})" style="width:65px">
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:600;font-size:.83rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" id="cn-${id}">${names[id] || 'Item #' + id}</div>
+        <div style="font-size:.75rem;color:var(--ink-soft)">₹${prices[id].toFixed(2)} / ${units[id]}</div>
+      </div>
+      <input class="qty-input" type="number" value="${qty}" min="0.1" step="0.5"
+             onchange="updateQty(${id}, this.value)" style="width:65px">
       <span style="font-size:.83rem;font-weight:600;color:var(--saffron);min-width:52px;text-align:right">₹${subtotal.toFixed(0)}</span>
       <button onclick="removeItem(${id})" style="background:none;border:none;cursor:pointer;color:var(--ink-soft);font-size:1rem;padding:0 .2rem">✕</button>
     </div>`;
@@ -247,27 +273,12 @@ function renderCart() {
   document.getElementById('cartItems').innerHTML = html;
   document.getElementById('cartTotal').style.display = 'block';
   document.getElementById('totalAmt').textContent = '₹'+total.toFixed(2);
-
-  fetch('/api/inventory').then(r=>r.json()).then(items=>{
-    items.forEach(item=>{
-      const el = document.getElementById('cn-'+item.id);
-      if(el) el.textContent = item.item_name;
-    });
-  });
 }
 
-function updateQty(id, val, maxStock) {
-  let qty = parseFloat(val) || 0;
-  if (qty > maxStock) {
-    qty = maxStock;
-    document.querySelectorAll(`#ci-${id} .qty-input`).forEach(i => i.value = maxStock);
-    alert(`Only ${maxStock} ${units[id]} available from this merchant.`);
-  }
-  cart[id] = qty;
-  renderCart();
-}
+function updateQty(id, val) { cart[id] = parseFloat(val) || 0; renderCart(); }
+
 function removeItem(id) {
-  delete cart[id]; delete prices[id]; delete units[id];
+  delete cart[id]; delete prices[id]; delete units[id]; delete names[id];
   const el = document.getElementById('card-'+id);
   if(el) el.classList.remove('in-cart');
   renderCart();
@@ -287,144 +298,121 @@ function placeOrder() {
   document.body.appendChild(form); form.submit();
 }
 
+// Marketplace Category Filter Engine
 function filterCat(btn, cat) {
   document.querySelectorAll('.filter-btn').forEach(b=>b.classList.remove('active'));
   btn.classList.add('active');
-  document.querySelectorAll('.item-card').forEach(card=>{
-    card.style.display = (cat==='all' || card.dataset.cat===cat) ? '' : 'none';
-  });
+  activeCategory = cat;
+  applyFilters();
 }
 
-function getAISuggestions() {
-  const att = parseInt(document.getElementById('attendanceInput').value) || 200;
-  fetch('/ai/suggest', {
-    method:'POST', headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({attendance: att})
-  }).then(r=>r.json()).then(d=>{
-    const container = document.getElementById('aiChips');
-    container.innerHTML = d.suggestions.map(s=>
-      `<span class="ai-chip" onclick="addFromAI('${s.item}',${s.qty},'${s.unit}')">
-        <strong>${s.item}</strong> — ${s.qty} ${s.unit}
-      </span>`
-    ).join('');
-  });
-}
-
-/* ── Vendor search & dropdown ─────────────────────────────────────────────── */
-
-let allVendors = [];       // [{id, name, phone}]
-let activeVendorId = null; // null = show all
-
-// Build vendor list once from the rendered item cards
-(function buildVendorList() {
-  const seen = new Map();
-  document.querySelectorAll('.item-card').forEach(card => {
-    const merchant = card.querySelector('.item-merchant');
-    if (!merchant) return;
-    // text is "by Vendor Name"
-    const name = merchant.textContent.replace(/^by\s+/, '').trim();
-    if (!seen.has(name)) seen.set(name, name);
-  });
-  allVendors = Array.from(seen.keys()).map(name => ({ name }));
-  renderVendorList('');
-})();
-
-function renderVendorList(query) {
-  const list = document.getElementById('vendorList');
-  const q = query.toLowerCase().trim();
-  const filtered = q
-    ? allVendors.filter(v => v.name.toLowerCase().includes(q))
-    : allVendors;
-
-  if (!filtered.length) {
-    list.innerHTML = '<div style="padding:.7rem 1rem;font-size:.84rem;color:var(--ink-soft)">No vendors found</div>';
-    return;
-  }
-  list.innerHTML = filtered.map(v => `
-    <div class="vendor-option"
-         onclick="selectVendor('${v.name.replace(/'/g,"\\'")}', this)"
-         style="padding:.6rem 1rem;font-size:.86rem;cursor:pointer;transition:background .15s;display:flex;align-items:center;justify-content:space-between;gap:.5rem">
-      <span style="font-weight:500;color:var(--ink)">🥬 ${v.name}</span>
-      <span style="font-size:.74rem;color:var(--ink-soft);background:var(--bg);padding:.1rem .4rem;border-radius:4px">${countItemsForVendor(v.name)} items</span>
-    </div>
-  `).join('');
-
-  // hover styles via JS (avoids needing extra CSS in base)
-  list.querySelectorAll('.vendor-option').forEach(el => {
-    el.addEventListener('mouseenter', () => el.style.background = 'var(--leaf-lt)');
-    el.addEventListener('mouseleave', () => el.style.background = '');
-  });
-}
-
-function countItemsForVendor(vendorName) {
-  let count = 0;
-  document.querySelectorAll('.item-card').forEach(card => {
-    const m = card.querySelector('.item-merchant');
-    if (m && m.textContent.replace(/^by\s+/, '').trim() === vendorName) count++;
-  });
-  return count;
-}
-
-function openVendorDropdown() {
-  const dd = document.getElementById('vendorDropdown');
-  dd.style.display = 'block';
-  renderVendorList(document.getElementById('vendorSearchInput').value);
-}
-
-function handleVendorSearch(val) {
-  openVendorDropdown();
-  renderVendorList(val);
-  // If user cleared the text, also clear vendor filter
-  if (!val.trim() && activeVendorId === null) {
-    applyVendorFilter(null);
+// Custom Searchable Dropdown Logic Engine
+function toggleMerchantDropdown(event) {
+  event.stopPropagation();
+  const panel = document.getElementById('dropdownPanelWindow');
+  const isOpen = panel.classList.contains('open');
+  
+  // Close all other dropdown containers first if any exist
+  panel.classList.toggle('open', !isOpen);
+  
+  if (!isOpen) {
+    const searchInp = document.getElementById('innerDropdownSearch');
+    searchInp.value = '';
+    handleDropdownSearch('');
+    setTimeout(() => searchInp.focus(), 50);
   }
 }
 
-function selectVendor(vendorName, el) {
-  document.getElementById('vendorSearchInput').value = vendorName;
-  document.getElementById('vendorDropdown').style.display = 'none';
-  applyVendorFilter(vendorName);
-}
-
-function applyVendorFilter(vendorName) {
-  activeVendorId = vendorName;
-  const badge  = document.getElementById('vendorFilterBadge');
-  const label  = document.getElementById('vendorFilterLabel');
-  const clear  = document.getElementById('vendorClearBtn');
-
-  document.querySelectorAll('.item-card').forEach(card => {
-    if (!vendorName) {
-      card.style.display = '';
-      return;
+function handleDropdownSearch(query) {
+  const cleanQuery = query.toLowerCase().trim();
+  document.querySelectorAll('#dropdownOptionsContainer .dropdown-opt').forEach(opt => {
+    const text = opt.textContent.toLowerCase();
+    if (cleanQuery === '' || text.includes(cleanQuery)) {
+      opt.style.display = '';
+    } else {
+      opt.style.display = 'none';
     }
-    const m = card.querySelector('.item-merchant');
-    const match = m && m.textContent.replace(/^by\s+/, '').trim() === vendorName;
-    card.style.display = match ? '' : 'none';
   });
-
-  if (vendorName) {
-    label.textContent = vendorName;
-    badge.style.display = 'block';
-    clear.style.display = 'inline-flex';
-  } else {
-    badge.style.display = 'none';
-    clear.style.display = 'none';
-  }
 }
 
-function clearVendorFilter() {
-  document.getElementById('vendorSearchInput').value = '';
-  document.getElementById('vendorDropdown').style.display = 'none';
-  applyVendorFilter(null);
-  renderVendorList('');
+function selectMerchantOption(value, label) {
+  activeVendor = value;
+  
+  // Highlight visually inside select elements array
+  document.querySelectorAll('#dropdownOptionsContainer .dropdown-opt').forEach(opt => {
+    opt.classList.remove('selected');
+    if (opt.getAttribute('data-value') === value) opt.classList.add('selected');
+  });
+  
+  document.getElementById('dropdownTriggerBtn').textContent = label;
+  document.getElementById('dropdownPanelWindow').classList.remove('open');
+  
+  applyFilters();
 }
 
-// Close dropdown when clicking outside
-document.addEventListener('click', function(e) {
-  const wrap = document.querySelector('.vendor-search-wrap');
-  if (wrap && !wrap.contains(e.target)) {
-    document.getElementById('vendorDropdown').style.display = 'none';
+function applyFilters() {
+  document.querySelectorAll('.item-card').forEach(card => {
+    const matchCat = (activeCategory === 'all' || card.dataset.cat === activeCategory);
+    const matchVendor = (activeVendor === 'all' || card.dataset.merchant === activeVendor);
+    card.style.display = (matchCat && matchVendor) ? '' : 'none';
+  });
+}
+
+// Out-Of-Bounds Dropdown Auto-Collapse Window Event Hook
+window.addEventListener('click', function(e) {
+  const widgetBox = document.getElementById('merchantDropdown');
+  if (widgetBox && !widgetBox.contains(e.target)) {
+    document.getElementById('dropdownPanelWindow').classList.remove('open');
   }
 });
+
+// Order Management Filter System Engine
+function filterOrderStatus(status) {
+  document.querySelectorAll('#ordersTableBody tr').forEach(row => {
+    const rowStatus = row.dataset.status;
+    row.style.display = (status === 'all' || rowStatus === status) ? '' : 'none';
+  });
+}
+
+function showNotice(msg, type='info') {
+  const el = document.createElement('div');
+  el.className = `flash-msg flash-${type}`;
+  el.innerHTML = msg;
+  el.style.cssText = 'position:fixed;bottom:1.5rem;right:1.5rem;z-index:999;max-width:380px;box-shadow:0 4px 20px rgba(0,0,0,.15)';
+  document.body.appendChild(el);
+  setTimeout(()=>{ el.style.opacity='0'; el.style.transition='opacity .4s'; setTimeout(()=>el.remove(),400); }, 4000);
+}
+
+// Sync External Cache Handlers cleanly
+(function loadPlannerCart() {
+  const raw = sessionStorage.getItem('plannerCart');
+  if (!raw) return;
+  sessionStorage.removeItem('plannerCart');
+  let payload;
+  try { payload = JSON.parse(raw); } catch(e) { return; }
+  if (!payload || !Array.isArray(payload.items) || !payload.items.length) return;
+
+  fetch('/api/inventory').then(r=>r.json()).then(items => {
+    const byId = {}; items.forEach(i => byId[i.id] = i);
+    let added = 0;
+    payload.items.forEach(entry => {
+      const inv = byId[entry.id];
+      if (!inv) return;
+      cart[entry.id] = entry.qty;
+      prices[entry.id] = inv.price_per_unit;
+      units[entry.id] = inv.unit;
+      names[entry.id] = inv.item_name;
+      const card = document.getElementById('card-'+entry.id);
+      if (card) card.classList.add('in-cart');
+      added++;
+    });
+    if (payload.notes) {
+      const notesEl = document.getElementById('orderNotes');
+      if (notesEl && !notesEl.value) notesEl.value = payload.notes;
+    }
+    renderCart();
+    if (added) showNotice(`✅ ${added} item(s) from your AI food plan loaded into the cart — review quantities and place your order.`, 'success');
+  }).catch(()=>{});
+})();
 </script>
 {% endblock %}

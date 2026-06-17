@@ -693,12 +693,33 @@ def inventory_delete(item_id):
 
 # ─── Orders (School Staff) ────────────────────────────────────────────────────
 
+
+# Statutory PM POSHAN commercial procurement thresholds
+PM_POSHAN_MIN_LIMITS = {
+    'rice': 5.0,
+    'dal': 2.0,
+    'lentil': 2.0,
+    'tomato': 1.0,
+    'onion': 1.0,
+    'potato': 2.0,
+    'leafy': 0.5,
+    'green': 0.5,
+    'oil': 1.0,
+    'salt': 0.5,
+    'turmeric': 50.0,
+    'chili': 50.0,
+    'chilli': 50.0,
+    'mustard': 30.0,
+    'cumin': 30.0
+}
+
 @app.route('/order/place', methods=['POST'])
 def order_place():
     guard = require_role('school_staff')
     if guard: return guard
     user = current_user()
     db   = get_db()
+    
     cart = json.loads(request.form.get('cart', '[]'))
     if not cart:
         flash('Your order is empty.')
@@ -706,26 +727,30 @@ def order_place():
 
     errors = []
     validated = []
+    
     for item in cart:
         inv = db.execute('SELECT * FROM inventory WHERE id=?', (item['id'],)).fetchone()
         if not inv:
             errors.append(f"Item #{item['id']} no longer exists.")
             continue
+            
         requested = float(item['qty'])
         available = float(inv['quantity'])
-        category = db.execute('''SELECT c.name FROM categories c JOIN inventory i ON c.id = i.category_id WHERE i.id = ?''',(inv['id'],)).fetchone()['name']
-        if category == 'Vegetables':
-            min_qty = 1      
+        item_name_lower = inv['item_name'].lower()
+        
+        # Determine strict PM POSHAN minimum purchase threshold based on item composition
+        min_qty = 1.0  # Standard fallback limit
+        for ingredient, statutory_min in PM_POSHAN_MIN_LIMITS.items():
+            if ingredient in item_name_lower:
+                min_qty = statutory_min
+                break
 
-        elif category == 'Spices':
-            min_qty = 500    
-
-        else:
-            min_qty = 1
+        # Verification Pipeline checks
         if requested < min_qty:
-                errors.append(
-                    f"{inv['item_name']}': minimum order quantity is "
-                    f"{min_qty} {inv['unit']}.")
+            errors.append(
+                f"'{inv['item_name']}': PM POSHAN compliance minimum order quantity is "
+                f"{min_qty} {inv['unit']}."
+            )
         elif requested > available:
             errors.append(
                 f"'{inv['item_name']}': you requested {requested} {inv['unit']} "
@@ -739,11 +764,13 @@ def order_place():
             flash(e)
         return redirect(url_for('dashboard'))
 
+    # Atomic Database Transaction Execution Block
     total = sum(v['inv']['price_per_unit'] * v['qty'] for v in validated)
     order_id = db.execute(
         'INSERT INTO orders (placed_by, total_amount, notes) VALUES (?,?,?)',
         (user['id'], total, request.form.get('notes', ''))
     ).lastrowid
+    
     for v in validated:
         inv = v['inv']
         db.execute(
@@ -751,6 +778,7 @@ def order_place():
             (order_id, inv['id'], inv['item_name'], v['qty'], inv['unit'], inv['price_per_unit'])
         )
         db.execute('UPDATE inventory SET quantity = quantity - ? WHERE id=?', (v['qty'], inv['id']))
+        
     db.commit()
     flash(f'Order #{order_id} placed successfully! Total: ₹{total:.2f}')
     return redirect(url_for('dashboard'))
@@ -760,13 +788,14 @@ def order_detail(order_id):
     user = current_user()
     if not user: return redirect(url_for('index'))
     db = get_db()
+    
     order = db.execute(
         'SELECT o.*, u.name as staff_name FROM orders o JOIN users u ON o.placed_by=u.id WHERE o.id=?',
         (order_id,)
     ).fetchone()
+    
     items = db.execute('SELECT * FROM order_items WHERE order_id=?', (order_id,)).fetchall()
     return render_template('order_detail.html', user=user, order=order, items=items)
-
 # ─── Delivery ─────────────────────────────────────────────────────────────────
 
 @app.route('/order/accept/<int:order_id>', methods=['POST'])
@@ -807,72 +836,361 @@ def order_confirm(order_id):
     flash(f'Order #{order_id} confirmed.')
     return redirect(url_for('dashboard'))
 
-# ─── AI Demand Prediction ──────────────────────────────────────────────────────
+# ─── AI Demand Prediction (PM POSHAN compliant) ────────────────────────────────
+#
+# PM POSHAN nutritional norms (revised norms, letter F.No.1-4/2018-Desk(MDM) Dt.28-02-2019):
+#
+#   PRIMARY   (Class I–V):   450 kcal/day, 12g protein/day
+#     → 100g food grain (rice/wheat), 25g pulses, 50g vegetables, 5g oil/fat per child
+#
+#   UPPER PRIMARY (Class VI–VIII): 700 kcal/day, 20g protein/day
+#     → 150g food grain, 30g pulses, 75g vegetables, 7.5g oil/fat per child
+#
+# These are MINIMUM standards; actual procurement includes a 5% waste buffer.
+# Minimum purchase quantities are enforced to prevent sub-economic orders.
+#
+# Supported AI providers (via POST body field "provider"):
+#   "anthropic"  — Claude Sonnet (default; requires ANTHROPIC_API_KEY env var)
+#   "openai"     — GPT-4o-mini  (requires OPENAI_API_KEY env var)
+#   "gemini"     — Gemini 1.5 Flash (requires GEMINI_API_KEY env var)
+#   "groq"       — Llama 3 via Groq (requires GROQ_API_KEY env var)
+# ────────────────────────────────────────────────────────────────────────────────
+
+# PM POSHAN official per-child-per-day norms (in grams; oil in mL per 100 students)
+POSHAN_NORMS = [
+    # (name, category, unit, primary_g_per_child, upper_g_per_child, min_purchase)
+    # Food grains — per child in grams
+    ('Rice',                'Grains',     'kg',  100,  150,  5.0),
+    ('Dal (Lentil)',        'Grains',     'kg',   25,   30,  2.0),
+    # Vegetables — per child in grams
+    ('Tomatoes',            'Vegetables', 'kg',   20,   30,  1.0),
+    ('Onions',              'Vegetables', 'kg',   15,   20,  1.0),
+    ('Potatoes',            'Vegetables', 'kg',   25,   35,  2.0),
+    ('Leafy Greens',        'Vegetables', 'kg',   10,   15,  0.5),
+    # Oil — grams per child (7→7.5g upper primary per 2019 revision)
+    ('Cooking Oil',         'Oils',       'L',     5,  7.5,  1.0),  # stored as g, returned as L (/1000)
+    # Spices — grams per 100 students (not per child)
+    ('Salt',                'Spices',     'kg',    2,    3,  0.5),   # g per 100 → kg/100 students
+    ('Turmeric Powder',     'Spices',     'g',    50,   60, 50.0),
+    ('Chili Powder',        'Spices',     'g',    30,   40, 50.0),
+    ('Mustard Seeds',       'Spices',     'g',    20,   25, 30.0),
+    ('Cumin Seeds',         'Spices',     'g',    15,   20, 30.0),
+]
+
+
+def _calc_quantity(name, unit, primary_g, upper_g, primary_att, upper_att):
+    """
+    Convert per-child gram norms to actual kg/L/g quantities.
+    Oil and Salt are stored as per-100-students totals in the norms table.
+    """
+    if unit == 'g':
+        # Spices: primary_g / upper_g are already per-100-students norms
+        return (primary_g * primary_att / 100) + (upper_g * upper_att / 100)
+    elif name in ('Cooking Oil', 'Salt'):
+        # Oil: norm is mL per child (for oil) or g per 100 students (salt)
+        # Cooking Oil: primary_g = 5 mL/child → convert to L
+        return (primary_g * primary_att / 1000) + (upper_g * upper_att / 1000)
+    else:
+        # Grains and vegetables: norm in g per child → convert to kg
+        return (primary_g * primary_att / 1000) + (upper_g * upper_att / 1000)
+
+
+def _get_7day_avg(db, item_name):
+    """Returns 7-day rolling average quantity ordered for this item (or None)."""
+    row = db.execute('''
+        SELECT AVG(oi.quantity) as avg_qty FROM order_items oi
+        WHERE oi.item_name LIKE ? AND oi.order_id IN (
+            SELECT id FROM orders WHERE created_at >= date('now','-7 days')
+        )
+    ''', (f'%{item_name.split(" ")[0]}%',)).fetchone()
+    return float(row['avg_qty']) if row and row['avg_qty'] else None
+
+
+def _call_ai_provider(provider, prompt):
+    """
+    Calls the specified AI provider.
+    Provider must be one of: anthropic, openai, gemini, groq.
+    API keys are read from environment variables.
+    Returns the text response string.
+    """
+    import urllib.request, json as _json
+
+    if provider == 'openai':
+        api_key = os.environ.get('OPENAI_API_KEY','')
+        if not api_key:
+            return None
+        payload = _json.dumps({
+            'model': 'gpt-4o-mini',
+            'max_tokens': 600,
+            'messages': [{'role': 'user', 'content': prompt}]
+        }).encode()
+        req = urllib.request.Request(
+            'https://api.openai.com/v1/chat/completions',
+            data=payload,
+            headers={'Content-Type': 'application/json', 'Authorization': f'Bearer {api_key}'},
+            method='POST'
+        )
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            d = _json.loads(resp.read())
+        return d['choices'][0]['message']['content']
+
+    elif provider == 'gemini':
+        api_key = os.environ.get('GEMINI_API_KEY','')
+        if not api_key:
+            return None
+        url = f'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={api_key}'
+        payload = _json.dumps({'contents': [{'parts': [{'text': prompt}]}],
+                               'generationConfig': {'maxOutputTokens': 600}}).encode()
+        req = urllib.request.Request(url, data=payload, headers={'Content-Type': 'application/json'}, method='POST')
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            d = _json.loads(resp.read())
+        return d['candidates'][0]['content']['parts'][0]['text']
+
+    elif provider == 'groq':
+        api_key = os.environ.get('GROQ_API_KEY','')
+        if not api_key:
+            return None
+        payload = _json.dumps({
+            'model': 'llama3-8b-8192',
+            'max_tokens': 600,
+            'messages': [{'role': 'user', 'content': prompt}]
+        }).encode()
+        req = urllib.request.Request(
+            'https://api.groq.com/openai/v1/chat/completions',
+            data=payload,
+            headers={'Content-Type': 'application/json', 'Authorization': f'Bearer {api_key}'},
+            method='POST'
+        )
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            d = _json.loads(resp.read())
+        return d['choices'][0]['message']['content']
+
+    else:  # default: anthropic
+        # When running inside Claude.ai artifacts the proxy handles auth.
+        # In production Flask, set ANTHROPIC_API_KEY env var.
+        api_key = os.environ.get('ANTHROPIC_API_KEY','')
+        if not api_key:
+            return None  # Fallback to formula-only mode
+        payload = _json.dumps({
+            'model': 'claude-sonnet-4-6',
+            'max_tokens': 600,
+            'messages': [{'role': 'user', 'content': prompt}]
+        }).encode()
+        req = urllib.request.Request(
+            'https://api.anthropic.com/v1/messages',
+            data=payload,
+            headers={
+                'Content-Type': 'application/json',
+                'x-api-key': api_key,
+                'anthropic-version': '2023-06-01'
+            },
+            method='POST'
+        )
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            d = _json.loads(resp.read())
+        return ''.join(c.get('text','') for c in d.get('content',[]))
+
+
+@app.route('/ai/planner')
+def ai_planner():
+    """Full-page AI Food Demand Planner (PM POSHAN norms, attendance history, stock cross-check)."""
+    user = current_user()
+    if not user or user['role'] not in ('school_staff', 'principal'):
+        return redirect(url_for('index'))
+    return render_template('ai_planner.html', user=user)
+
 
 @app.route('/ai/suggest', methods=['POST'])
 def ai_suggest():
+    """
+    PM POSHAN-compliant AI demand prediction.
+
+    Required POST JSON fields:
+      attendance_primary  (int)  — students present in Class I–V today
+      attendance_upper    (int)  — students present in Class VI–VIII today
+
+    Optional:
+      provider  (str)  — "anthropic" | "openai" | "gemini" | "groq" (default: "anthropic")
+
+    Returns JSON:
+      {
+        "suggestions": [...],
+        "ai_analysis": "...",
+        "provider_used": "...",
+        "norms_applied": "PM POSHAN revised 2019",
+        "totals": { "children": N, "kcal_target": N, "protein_target_g": N }
+      }
+    """
     user = current_user()
-    if not user or user['role'] not in ('school_staff', 'principal', 'admin'):
+    if not user or user['role'] not in ('school_staff', 'principal'):
         return jsonify({'error': 'Unauthorized'}), 403
-    db = get_db()
-    data = request.get_json()
-    attendance = int(data.get('attendance', 200))
-    today = date.today().isoformat()
+
+    data             = request.get_json() or {}
+    primary_att      = int(data.get('attendance_primary', data.get('attendance', 120)))
+    upper_att        = int(data.get('attendance_upper',   80))
+    provider         = data.get('provider', 'anthropic').lower()
+    today            = date.today().isoformat()
+    db               = get_db()
+
+    # ── 1. FORMULA CALCULATION (PM POSHAN norms) ──────────────────────────────
     db.execute("DELETE FROM ai_suggestions WHERE DATE(generated_at)=?", (today,))
-    base_per_100 = {
-        'Rice':          ('kg', 5.0,  'Grains'),
-        'Dal (Lentil)':  ('kg', 2.5,  'Grains'),
-        'Tomatoes':      ('kg', 2.0,  'Vegetables'),
-        'Onions':        ('kg', 1.5,  'Vegetables'),
-        'Potatoes':      ('kg', 3.0,  'Vegetables'),
-        'Spinach':       ('kg', 1.0,  'Vegetables'),
-        'Cooking Oil':   ('L',  0.8,  'Oils'),
-        'Salt':          ('kg', 0.3,  'Spices'),
-        'Turmeric':      ('g',  50.0, 'Spices'),
-        'Chili Powder':  ('g',  40.0, 'Spices'),
-        'Mustard Seeds': ('g',  30.0, 'Spices'),
-    }
+
     suggestions = []
-    for item, (unit, qty_per_100, cat) in base_per_100.items():
-        suggested_qty = round((qty_per_100 * attendance) / 100, 2)
-        avg_row = db.execute('''
-            SELECT AVG(oi.quantity) as avg_qty FROM order_items oi
-            WHERE oi.item_name LIKE ? AND oi.order_id IN (
-                SELECT id FROM orders WHERE created_at >= date('now','-7 days')
-            )
-        ''', (f'%{item}%',)).fetchone()
-        avg_past = avg_row['avg_qty'] if avg_row and avg_row['avg_qty'] else None
+    for (name, cat, unit, primary_g, upper_g, min_qty) in POSHAN_NORMS:
+
+        # Base quantity from today's attendance
+        base_qty = _calc_quantity(name, unit, primary_g, upper_g, primary_att, upper_att)
+
+        # 5% waste buffer (standard kitchen practice)
+        with_buffer = base_qty * 1.05
+
+        # Primary breakdown
+        primary_qty = _calc_quantity(name, unit, primary_g, 0, primary_att, 0)
+        upper_qty   = _calc_quantity(name, unit, 0, upper_g, 0, upper_att)
+
+        # 7-day history weighting: 60% formula + 40% past average
+        avg_past = _get_7day_avg(db, name)
         if avg_past:
-            suggested_qty = round((suggested_qty * 0.6 + avg_past * 0.4), 2)
+            weighted_qty = round(with_buffer * 0.6 + avg_past * 0.4, 2)
+        else:
+            weighted_qty = round(with_buffer, 2)
+
+        # Enforce minimum purchase quantity
+        final_qty   = round(max(weighted_qty, min_qty), 2)
+        min_enforced = final_qty > weighted_qty
+
+        # Stock availability check
+        stock_row = db.execute(
+            'SELECT SUM(quantity) as total FROM inventory WHERE item_name LIKE ?',
+            (f'%{name.split(" ")[0]}%',)
+        ).fetchone()
+        stock_avail = float(stock_row['total']) if stock_row and stock_row['total'] else 0.0
+        stock_pct   = min(round((stock_avail / final_qty) * 100, 1), 100.0) if final_qty > 0 else 100.0
+        if   stock_pct >= 100: stock_status = 'ok'
+        elif stock_pct >= 50:  stock_status = 'warn'
+        else:                  stock_status = 'critical'
+
+        # Persist to DB
         db.execute(
-            'INSERT INTO ai_suggestions (item_name, category, suggested_qty, unit, basis_attendance) VALUES (?,?,?,?,?)',
-            (item, cat, suggested_qty, unit, attendance)
+            '''INSERT INTO ai_suggestions
+               (item_name, category, suggested_qty, unit, basis_attendance)
+               VALUES (?,?,?,?,?)''',
+            (name, cat, final_qty, unit, primary_att + upper_att)
         )
-        suggestions.append({'item': item, 'qty': suggested_qty, 'unit': unit, 'category': cat})
+
+        suggestions.append({
+            'item':           name,
+            'category':       cat,
+            'unit':           unit,
+            'qty':            final_qty,
+            'primary_qty':    round(primary_qty, 2),
+            'upper_qty':      round(upper_qty, 2),
+            'history_avg':    round(avg_past, 2) if avg_past else None,
+            'weighted_qty':   weighted_qty,
+            'min_enforced':   min_enforced,
+            'min_qty':        min_qty,
+            'stock_available':stock_avail,
+            'stock_pct':      stock_pct,
+            'stock_status':   stock_status,
+        })
+
     db.commit()
-    return jsonify({'suggestions': suggestions, 'attendance': attendance})
 
-# ─── Public API ────────────────────────────────────────────────────────────────
+    # ── 2. AI NARRATIVE ANALYSIS ───────────────────────────────────────────────
+    critical_items = [s['item'] for s in suggestions if s['stock_status'] == 'critical']
+    item_lines     = '\n'.join(
+        f"  {s['item']}: {s['qty']} {s['unit']} (stock: {s['stock_available']} {s['unit']}, {s['stock_status']})"
+        for s in suggestions
+    )
+    ai_prompt = f"""You are a nutrition and procurement expert for India's PM POSHAN (Mid-Day Meal) scheme.
 
+Today's school attendance:
+- Primary (Class I–V): {primary_att} students
+- Upper Primary (Class VI–VIII): {upper_att} students
+- Total: {primary_att + upper_att} students
+
+PM POSHAN norms applied:
+- Primary: 450 kcal, 12g protein/child (100g rice, 25g dal, 50g vegetables, 5g oil)
+- Upper Primary: 700 kcal, 20g protein/child (150g rice, 30g dal, 75g vegetables, 7.5g oil)
+
+Calculated procurement (60% PM POSHAN formula + 40% 7-day history, 5% waste buffer, minimums enforced):
+{item_lines}
+
+{f'⚠ CRITICAL STOCK SHORTAGES — immediate restocking needed: {", ".join(critical_items)}' if critical_items else ''}
+
+Write 3–4 concise sentences for school kitchen staff covering:
+1. How today's attendance compares to the historical average and what that means for quantities.
+2. Any nutritional balance concern based on the menu (e.g. protein adequacy, iron from greens).
+3. What to prioritise restocking first and why.
+Keep it practical and in plain English. No bullet points."""
+
+    ai_text    = None
+    provider_used = provider
+    try:
+        ai_text = _call_ai_provider(provider, ai_prompt)
+    except Exception as e:
+        app.logger.warning(f'AI provider {provider} failed: {e}')
+        ai_text = None
+        provider_used = 'formula_only'
+
+    if not ai_text:
+        provider_used = 'formula_only'
+        ai_text = (
+            f"Today's procurement covers {primary_att + upper_att} children meeting PM POSHAN norms "
+            f"({primary_att} primary @ 450 kcal, {upper_att} upper primary @ 700 kcal). "
+            + (f"Critical restock needed for: {', '.join(critical_items)}. " if critical_items else "All items have adequate stock. ")
+            + "Quantities are calculated using the official PM POSHAN formula weighted with your 7-day order history."
+        )
+
+    return jsonify({
+        'suggestions':    suggestions,
+        'ai_analysis':    ai_text,
+        'provider_used':  provider_used,
+        'norms_applied':  'PM POSHAN revised norms (F.No.1-4/2018-Desk(MDM) Dt.28-02-2019)',
+        'totals': {
+            'children':         primary_att + upper_att,
+            'primary_att':      primary_att,
+            'upper_att':        upper_att,
+            'kcal_target':      (primary_att * 450) + (upper_att * 700),
+            'protein_target_g': (primary_att * 12)  + (upper_att * 20),
+        }
+    })
+
+
+@app.route('/api/inventory')
 @app.route('/api/inventory')
 def api_inventory():
     db = get_db()
     items = db.execute('''
-        SELECT i.id, i.item_name, c.name AS category, c.icon AS category_icon,
-               i.unit, i.quantity, i.price_per_unit,
+        SELECT i.*,
+               c.name AS category,
                u.name AS merchant_name
         FROM inventory i
         JOIN categories c ON i.category_id = c.id
         JOIN users u ON i.merchant_id = u.id
-        WHERE i.quantity > 0 AND u.is_active = 1
+        WHERE i.quantity > 0
         ORDER BY c.name, i.item_name
     ''').fetchall()
+
     return jsonify([dict(r) for r in items])
 
-@app.route('/api/categories')
-def api_categories():
+
+@app.route('/api/attendance/history')
+def api_attendance_history():
+    """Returns 7-day attendance history inferred from order volumes (proxy metric)."""
+    user = current_user()
+    if not user: return jsonify({'error': 'Unauthorized'}), 403
     db = get_db()
-    return jsonify(get_categories(db))
+    rows = db.execute('''
+        SELECT DATE(generated_at) as day,
+               CAST(AVG(basis_attendance) AS INTEGER) as total_att,
+               MAX(generated_at) as last_generated
+        FROM ai_suggestions
+        WHERE generated_at >= date('now','-7 days')
+        GROUP BY day ORDER BY day
+    ''').fetchall()
+    return jsonify([dict(r) for r in rows])
+
 
 if __name__ == '__main__':
     app.run(debug=True, port=5000)

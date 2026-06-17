@@ -1,0 +1,520 @@
+{% extends "base.html" %}
+{% block title %}AI Food Planner — SchoolMeal Connect{% endblock %}
+{% block extra_head %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+.poshan-badge{display:inline-flex;align-items:center;gap:.4rem;background:#FFF8E1;border:1px solid #FFECB3;color:#92400E;padding:.3rem .8rem;border-radius:20px;font-size:.75rem;font-weight:700;text-transform:uppercase;letter-spacing:.4px;margin-top:.7rem}
+.planner-header-row{display:flex;justify-content:space-between;align-items:flex-start;gap:1rem;flex-wrap:wrap}
+
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:1.2rem}
+.grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:1rem}
+@media(max-width:760px){.grid-2,.grid-3{grid-template-columns:1fr}}
+
+.norms-row{display:flex;gap:.6rem;flex-wrap:wrap;margin:.5rem 0 .8rem}
+.norm-pill{background:var(--card);border:1px solid var(--border);border-radius:8px;padding:.4rem .8rem;font-size:.78rem;display:flex;align-items:center;gap:.4rem}
+.norm-pill .pill-dot{width:8px;height:8px;border-radius:50%;flex:none}
+
+.class-group-card{border:2px solid var(--border);border-radius:10px;padding:1rem;transition:all .2s}
+.class-group-card.primary-group{border-left:4px solid var(--saffron)}
+.class-group-card.upper-group{border-left:4px solid var(--sky)}
+.group-label{font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-bottom:.4rem}
+.group-label.primary-label{color:var(--saffron)}
+.group-label.upper-label{color:var(--sky)}
+.group-title{font-family:'Sora',sans-serif;font-size:.95rem;font-weight:700;color:var(--ink);margin-bottom:.15rem}
+.group-cal{font-size:.8rem;color:var(--ink-soft)}
+.group-input-row{display:flex;gap:.5rem;align-items:center;margin-top:.8rem}
+.group-input-row label{margin:0;white-space:nowrap;font-size:.8rem}
+.group-input-row input{width:90px;flex:none}
+
+.chart-container{position:relative;height:110px}
+.history-hint{font-size:.76rem;color:var(--ink-soft);margin-top:.4rem}
+
+.suggestion-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:.8rem;margin-top:.5rem}
+.suggestion-item{border:1.5px solid var(--border);border-radius:10px;padding:.9rem 1rem;transition:all .2s;position:relative;overflow:hidden}
+.suggestion-item::before{content:'';position:absolute;top:0;left:0;width:3px;height:100%;background:var(--leaf)}
+.suggestion-item.warn-item::before{background:var(--turmeric)}
+.suggestion-item.critical-item::before{background:#EF5350}
+.s-item-header{display:flex;align-items:flex-start;justify-content:space-between;gap:.5rem;margin-bottom:.3rem}
+.s-item-name{font-weight:700;font-size:.92rem;color:var(--ink)}
+.s-item-cat{font-size:.72rem;background:var(--leaf-lt);color:var(--leaf);padding:.15rem .5rem;border-radius:4px;font-weight:600}
+.s-item-qty-main{font-family:'Sora',sans-serif;font-size:1.2rem;font-weight:700;color:var(--leaf)}
+.s-item-qty-unit{font-size:.8rem;color:var(--ink-mid)}
+.s-item-breakdown{display:flex;flex-wrap:wrap;gap:.8rem;margin-top:.4rem;font-size:.78rem;color:var(--ink-soft)}
+.s-item-breakdown span{display:flex;align-items:center;gap:.25rem}
+.min-stock-bar{margin-top:.5rem}
+.min-stock-label{font-size:.73rem;color:var(--ink-soft);margin-bottom:.3rem;display:flex;justify-content:space-between}
+.bar-track{height:5px;background:var(--border);border-radius:3px;overflow:hidden}
+.bar-fill{height:100%;border-radius:3px;transition:width .5s ease}
+.bar-fill.ok{background:var(--leaf)}
+.bar-fill.warn{background:var(--turmeric)}
+.bar-fill.critical{background:#EF5350}
+.stock-alert{font-size:.74rem;font-weight:600;padding:.2rem .55rem;border-radius:4px;margin-top:.4rem;display:inline-flex;align-items:center;gap:.3rem}
+.alert-ok{background:var(--leaf-lt);color:var(--leaf)}
+.alert-warn{background:#FFF8E1;color:#F57F17}
+.alert-critical{background:#FFEBEE;color:#B71C1C}
+
+.cat-filter{display:flex;gap:.4rem;flex-wrap:wrap;margin-bottom:1rem}
+.cat-btn{padding:.3rem .75rem;border-radius:20px;font-size:.78rem;font-weight:600;cursor:pointer;border:1.5px solid var(--border);background:var(--card);color:var(--ink-mid);transition:all .2s}
+.cat-btn.active{background:var(--ink);color:#fff;border-color:var(--ink)}
+
+.ai-reasoning{background:linear-gradient(135deg,#EBF4FB 0%,#EBF6EF 100%);border:1px solid #B3D9F7;border-radius:10px;padding:1rem;margin-top:1rem;font-size:.85rem;color:var(--ink-mid);line-height:1.6}
+.ai-reasoning strong{color:var(--ink)}
+.provider-note{font-size:.74rem;color:var(--ink-soft);margin-top:.5rem}
+
+.norm-table{width:100%;border-collapse:collapse;font-size:.83rem}
+.norm-table th{background:var(--bg);padding:.6rem .8rem;text-align:left;font-weight:600;color:var(--ink-mid);font-size:.75rem;text-transform:uppercase;letter-spacing:.3px;border-bottom:1px solid var(--border)}
+.norm-table td{padding:.6rem .8rem;border-bottom:1px solid var(--border);color:var(--ink)}
+.norm-table tr:last-child td{border-bottom:none}
+.norm-badge{display:inline-block;padding:.15rem .5rem;border-radius:4px;font-size:.72rem;font-weight:700}
+.norm-primary{background:#FFF3E0;color:#E65100}
+.norm-upper{background:var(--sky-lt);color:var(--sky)}
+
+.copy-cart-row{display:flex;gap:.5rem;align-items:center;justify-content:flex-end;flex-wrap:wrap;margin-top:1rem;padding-top:1rem;border-top:1px solid var(--border)}
+.spinner{width:36px;height:36px;border:3px solid var(--border);border-top-color:var(--leaf);border-radius:50%;animation:spin .7s linear infinite;display:inline-block}
+@keyframes spin{to{transform:rotate(360deg)}}
+.flash-msg{padding:.75rem 1rem;border-radius:8px;margin-bottom:1rem;font-size:.88rem;display:flex;align-items:flex-start;gap:.5rem}
+.flash-info{background:var(--sky-lt);border:1px solid #B3D9F7;color:#1A4A72}
+.flash-success{background:var(--leaf-lt);border:1px solid #A5D6A7;color:#1B5E20}
+.flash-warn{background:#FFFBF0;border:1px solid #FFDF8A;color:#92400E}
+.flash-error{background:#FFF5F5;border:1px solid #FFCDD2;color:#B71C1C}
+</style>
+{% endblock %}
+{% block content %}
+<div class="page">
+  <div class="page-header">
+    <div class="planner-header-row">
+      <div>
+        <h1>🤖 AI Food Demand Planner</h1>
+        <p>Calculates ingredient requirements using official <strong>PM POSHAN nutritional norms</strong> (formerly Mid-Day Meal Scheme), split by class group, weighted with your school's recent attendance history, and cross-checked against live merchant stock.</p>
+        <div class="poshan-badge">📋 PM POSHAN Guidelines — Classes I–VIII</div>
+      </div>
+      <a href="{{ url_for('dashboard') }}" class="btn btn-ghost btn-sm">← Back to Dashboard</a>
+    </div>
+  </div>
+
+  <div id="plannerNotice"></div>
+
+  <!-- AI Provider (narrative only — quantities always come from the PM POSHAN formula) -->
+  <div class="card" style="margin-bottom:1.2rem">
+    <div class="card-title"><span>⚙️</span> AI Insight Provider</div>
+    <div class="form-group" style="max-width:320px">
+      <label>Narrative analysis engine</label>
+      <select id="providerSelect">
+        <option value="anthropic" selected>Claude (Anthropic)</option>
+        <option value="openai">OpenAI GPT-4o-mini</option>
+        <option value="gemini">Gemini 1.5 Flash</option>
+        <option value="groq">Groq Llama 3</option>
+      </select>
+    </div>
+    <div class="provider-note">This only chooses which AI writes the plain-English summary below — procurement quantities always come from the official PM POSHAN formula. Your administrator configures provider API keys on the server; if a provider isn't configured, the app automatically falls back to a formula-based summary.</div>
+  </div>
+
+  <!-- Attendance -->
+  <div class="card">
+    <div class="card-title"><span>👨‍🏫</span> Today's Attendance</div>
+
+    <div class="norms-row">
+      <div class="norm-pill"><div class="pill-dot" style="background:var(--saffron)"></div><span><strong>Primary (I–V):</strong> 450 cal, 12g protein/child</span></div>
+      <div class="norm-pill"><div class="pill-dot" style="background:var(--sky)"></div><span><strong>Upper Primary (VI–VIII):</strong> 700 cal, 20g protein/child</span></div>
+    </div>
+
+    <div class="grid-2" style="margin-bottom:1rem">
+      <div class="class-group-card primary-group">
+        <div class="group-label primary-label">Primary School</div>
+        <div class="group-title">Classes I – V</div>
+        <div class="group-cal">450 kcal · 12g protein per child per day</div>
+        <div style="font-size:.75rem;color:var(--ink-soft);margin-top:.25rem">100g rice · 25g dal · 50g veg · 5g oil</div>
+        <div class="group-input-row">
+          <label>Students present:</label>
+          <input type="number" id="att-primary" value="120" min="0" max="2000">
+        </div>
+      </div>
+
+      <div class="class-group-card upper-group">
+        <div class="group-label upper-label">Upper Primary School</div>
+        <div class="group-title">Classes VI – VIII</div>
+        <div class="group-cal">700 kcal · 20g protein per child per day</div>
+        <div style="font-size:.75rem;color:var(--ink-soft);margin-top:.25rem">150g rice · 30g dal · 75g veg · 7.5g oil</div>
+        <div class="group-input-row">
+          <label>Students present:</label>
+          <input type="number" id="att-upper" value="80" min="0" max="2000">
+        </div>
+      </div>
+    </div>
+
+    <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:1rem">
+      <button class="btn btn-ghost btn-sm" onclick="applyHistoryEstimate('avg')">7-day avg</button>
+      <button class="btn btn-ghost btn-sm" onclick="applyHistoryEstimate('latest')">Latest day</button>
+      <button class="btn btn-ghost btn-sm" onclick="applyHistoryEstimate('peak')">Peak day</button>
+    </div>
+
+    <div style="margin-bottom:.4rem">
+      <div style="font-size:.8rem;color:var(--ink-soft);margin-bottom:.4rem">Recent attendance trend (from past AI plans)</div>
+      <div class="chart-container" id="chartWrap">
+        <canvas id="historyChart"></canvas>
+      </div>
+      <div id="historyEmpty" class="history-hint" style="display:none">No history yet — generate a plan today to start tracking the trend.</div>
+      <div class="history-hint">Quick-fill buttons estimate a Primary/Upper split proportional to your current inputs, since per-group history isn't tracked separately yet.</div>
+    </div>
+
+    <button class="btn btn-primary btn-full" onclick="generatePlan()" id="generateBtn">
+      🤖 Generate AI Food Plan
+    </button>
+  </div>
+
+  <!-- Results -->
+  <div id="resultsSection" style="display:none">
+
+    <div class="grid-3" style="margin-top:1.2rem" id="summaryStats"></div>
+
+    <div class="card" style="margin-top:1.2rem;position:relative" id="suggestionsCard">
+      <div class="card-title"><span>📦</span> Recommended Procurement <span id="suggestionCount" style="background:var(--saffron);color:#fff;padding:.1rem .5rem;border-radius:20px;font-size:.75rem;margin-left:.3rem">0</span></div>
+
+      <div class="cat-filter" id="catFilter"></div>
+      <div class="suggestion-grid" id="suggestionGrid"></div>
+
+      <div class="ai-reasoning" id="aiReasoning" style="display:none">
+        <strong>🤖 AI Analysis<span id="providerUsedLabel"></span>:</strong> <span id="aiReasoningText"></span>
+      </div>
+
+      <div class="copy-cart-row">
+        <span style="font-size:.8rem;color:var(--ink-soft)">Items highlighted in red are below available stock</span>
+        <button class="btn btn-saffron btn-sm" onclick="exportSuggestions()">📋 Export as CSV</button>
+        {% if user.role == 'school_staff' %}
+        <button class="btn btn-primary btn-sm" onclick="sendToCart()">🛒 Send to Order Cart</button>
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="card" style="margin-top:1.2rem">
+      <div class="card-title"><span>📜</span> PM POSHAN Nutritional Norms Reference</div>
+      <table class="norm-table">
+        <thead>
+          <tr>
+            <th>Ingredient</th>
+            <th><span class="norm-badge norm-primary">Primary (I–V)</span> per child</th>
+            <th><span class="norm-badge norm-upper">Upper (VI–VIII)</span> per child</th>
+            <th>Unit</th>
+            <th>Minimum Purchase</th>
+          </tr>
+        </thead>
+        <tbody id="normTableBody"></tbody>
+      </table>
+      <div style="font-size:.76rem;color:var(--ink-soft);margin-top:.7rem">
+        Source: PM POSHAN (formerly Mid-Day Meal Scheme) guidelines. Revised norms via letter F.No.1-4/2018-Desk(MDM) Dt.28-02-2019. Upper primary protein target: 20g/day, 700 kcal/day.
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+/* ════════════════════════════════════════════════════════
+   STATIC REFERENCE TABLE — display only.
+   Keep in sync with POSHAN_NORMS in app.py (actual calculation
+   happens server-side; this is just shown to staff as a reference).
+   ════════════════════════════════════════════════════════ */
+const POSHAN_NORMS_REF = [
+  {name:'Rice',            cat:'Grains',     unit:'kg', primary:100, upper:150, minQty:5,    desc:'Staple grain'},
+  {name:'Dal (Lentil)',     cat:'Grains',     unit:'kg', primary:25,  upper:30,  minQty:2,    desc:'Protein source'},
+  {name:'Tomatoes',         cat:'Vegetables', unit:'kg', primary:20,  upper:30,  minQty:1,    desc:'Vegetable base'},
+  {name:'Onions',           cat:'Vegetables', unit:'kg', primary:15,  upper:20,  minQty:1,    desc:'Flavour base'},
+  {name:'Potatoes',         cat:'Vegetables', unit:'kg', primary:25,  upper:35,  minQty:2,    desc:'Filling vegetable'},
+  {name:'Leafy Greens',     cat:'Vegetables', unit:'kg', primary:10,  upper:15,  minQty:0.5,  desc:'Iron & micronutrients'},
+  {name:'Cooking Oil',      cat:'Oils',       unit:'L',  primary:5,   upper:7.5, minQty:1,    desc:'mL per child'},
+  {name:'Salt',             cat:'Spices',     unit:'kg', primary:2,   upper:3,   minQty:0.5,  desc:'g per 100 children'},
+  {name:'Turmeric Powder',  cat:'Spices',     unit:'g',  primary:50,  upper:60,  minQty:50,   desc:'Per 100 children'},
+  {name:'Chili Powder',     cat:'Spices',     unit:'g',  primary:30,  upper:40,  minQty:50,   desc:'Per 100 children'},
+  {name:'Mustard Seeds',    cat:'Spices',     unit:'g',  primary:20,  upper:25,  minQty:30,   desc:'Per 100 children'},
+  {name:'Cumin Seeds',      cat:'Spices',     unit:'g',  primary:15,  upper:20,  minQty:30,   desc:'Per 100 children'},
+];
+
+let lastSuggestions = [];
+let lastTotals = {};
+let attHistory = [];
+let historyChart;
+
+/* ── Attendance history (real data from /api/attendance/history) ── */
+async function loadAttendanceHistory() {
+  try {
+    const res = await fetch('/api/attendance/history');
+    const rows = await res.json();
+    attHistory = (rows || []).map(r => ({ day: r.day, total: r.total_att || 0 }));
+  } catch (e) {
+    attHistory = [];
+  }
+  renderHistoryChart();
+}
+
+function renderHistoryChart() {
+  const wrap = document.getElementById('chartWrap');
+  const empty = document.getElementById('historyEmpty');
+  if (!attHistory.length) {
+    wrap.style.display = 'none';
+    empty.style.display = 'block';
+    return;
+  }
+  wrap.style.display = 'block';
+  empty.style.display = 'none';
+  const ctx = document.getElementById('historyChart').getContext('2d');
+  const labels = attHistory.map(r => r.day.slice(5));
+  const data = attHistory.map(r => r.total);
+  if (historyChart) historyChart.destroy();
+  historyChart = new Chart(ctx, {
+    type: 'line',
+    data: { labels, datasets: [{
+      label: 'Total attendance',
+      data, borderColor: '#2D7A4F', backgroundColor: 'rgba(45,122,79,.08)',
+      fill: true, tension: 0.4, pointRadius: 3, pointBackgroundColor: '#2D7A4F'
+    }]},
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        y: { beginAtZero: true, ticks: { font: { size: 10 } }, grid: { color: 'rgba(0,0,0,.04)' } },
+        x: { ticks: { font: { size: 10 } }, grid: { display: false } }
+      }
+    }
+  });
+}
+
+function applyHistoryEstimate(mode) {
+  if (!attHistory.length) {
+    showNotice('No history yet — generate a plan first to start tracking the trend.', 'warn');
+    return;
+  }
+  const totals = attHistory.map(r => r.total);
+  let target;
+  if (mode === 'avg') target = Math.round(totals.reduce((a, b) => a + b, 0) / totals.length);
+  else if (mode === 'peak') target = Math.max(...totals);
+  else target = totals[totals.length - 1];
+
+  const curP = parseInt(document.getElementById('att-primary').value) || 0;
+  const curU = parseInt(document.getElementById('att-upper').value) || 0;
+  const curTotal = curP + curU;
+  const ratio = curTotal > 0 ? curP / curTotal : 0.6;
+  document.getElementById('att-primary').value = Math.round(target * ratio);
+  document.getElementById('att-upper').value = Math.round(target * (1 - ratio));
+}
+
+/* ═══════════════════════════════════════════════════════ */
+/*  MAIN: GENERATE SUGGESTIONS (real backend, no client keys) */
+/* ═══════════════════════════════════════════════════════ */
+async function generatePlan() {
+  const primaryAtt = parseInt(document.getElementById('att-primary').value) || 0;
+  const upperAtt = parseInt(document.getElementById('att-upper').value) || 0;
+
+  if (primaryAtt + upperAtt === 0) {
+    showNotice("Please enter today's attendance for at least one class group.", 'warn');
+    return;
+  }
+
+  const btn = document.getElementById('generateBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner" style="width:16px;height:16px;border-width:2px"></span> Calculating…';
+
+  try {
+    const res = await fetch('/ai/suggest', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        attendance_primary: primaryAtt,
+        attendance_upper: upperAtt,
+        provider: document.getElementById('providerSelect').value
+      })
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || ('Server error ' + res.status));
+    }
+    const data = await res.json();
+    lastSuggestions = data.suggestions;
+    lastTotals = data.totals;
+    renderResults(data, primaryAtt, upperAtt);
+    loadAttendanceHistory();
+  } catch (e) {
+    showNotice('Could not generate plan: ' + e.message, 'error');
+  }
+
+  btn.disabled = false;
+  btn.innerHTML = '🤖 Regenerate Plan';
+}
+
+/* ═══════════════════════════════════════════════════════ */
+/*  RENDER RESULTS                                         */
+/* ═══════════════════════════════════════════════════════ */
+function renderResults(data, primaryAtt, upperAtt) {
+  document.getElementById('resultsSection').style.display = 'block';
+  const results = data.suggestions;
+  const totals = data.totals;
+  const critCount = results.filter(r => r.stock_status === 'critical').length;
+  const warnCount = results.filter(r => r.stock_status === 'warn').length;
+
+  document.getElementById('summaryStats').innerHTML = `
+    <div class="card">
+      <div style="font-size:.78rem;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.5px;font-weight:700;margin-bottom:.3rem">Total Children</div>
+      <div style="font-family:'Sora',sans-serif;font-size:2rem;font-weight:800;color:var(--ink)">${totals.children}</div>
+      <div style="font-size:.8rem;color:var(--ink-mid);margin-top:.2rem">Primary: ${primaryAtt} · Upper: ${upperAtt}</div>
+    </div>
+    <div class="card">
+      <div style="font-size:.78rem;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.5px;font-weight:700;margin-bottom:.3rem">Min. Calories Target</div>
+      <div style="font-family:'Sora',sans-serif;font-size:2rem;font-weight:800;color:var(--leaf)">${totals.kcal_target.toLocaleString('en-IN')}</div>
+      <div style="font-size:.8rem;color:var(--ink-mid);margin-top:.2rem">kcal total for today</div>
+    </div>
+    <div class="card">
+      <div style="font-size:.78rem;color:${critCount > 0 ? '#B71C1C' : warnCount > 0 ? '#E65100' : 'var(--ink-soft)'};text-transform:uppercase;letter-spacing:.5px;font-weight:700;margin-bottom:.3rem">Stock Alerts</div>
+      <div style="font-family:'Sora',sans-serif;font-size:2rem;font-weight:800;color:${critCount > 0 ? '#EF5350' : warnCount > 0 ? 'var(--turmeric)' : 'var(--leaf)'}">${critCount + warnCount}</div>
+      <div style="font-size:.8rem;color:var(--ink-mid);margin-top:.2rem">${critCount} critical · ${warnCount} low</div>
+    </div>
+  `;
+
+  const cats = [...new Set(results.map(r => r.category))];
+  document.getElementById('catFilter').innerHTML =
+    '<button class="cat-btn active" onclick="filterCat(this,\'all\')">All</button>' +
+    cats.map(c => `<button class="cat-btn" onclick="filterCat(this,'${c}')">${c}</button>`).join('');
+
+  document.getElementById('suggestionCount').textContent = results.length;
+  renderSuggestionCards(results);
+  renderNormTable();
+
+  document.getElementById('aiReasoning').style.display = 'block';
+  document.getElementById('aiReasoningText').textContent = data.ai_analysis;
+  const usedLabel = document.getElementById('providerUsedLabel');
+  usedLabel.textContent = data.provider_used && data.provider_used !== 'anthropic' ? ` (${data.provider_used.replace('_', ' ')})` : '';
+
+  document.getElementById('resultsSection').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function renderSuggestionCards(results) {
+  document.getElementById('suggestionGrid').innerHTML = results.map(r => {
+    const statusClass = r.stock_status === 'critical' ? 'critical-item' : r.stock_status === 'warn' ? 'warn-item' : '';
+    const alertClass = r.stock_status === 'critical' ? 'alert-critical' : r.stock_status === 'warn' ? 'alert-warn' : 'alert-ok';
+    const alertLabel = r.stock_status === 'critical' ? '⚠ Restock urgently' : r.stock_status === 'warn' ? '⚡ Running low' : '✓ Stock OK';
+    const barClass = r.stock_status === 'critical' ? 'critical' : r.stock_status === 'warn' ? 'warn' : 'ok';
+
+    return `
+      <div class="suggestion-item ${statusClass}" data-cat="${r.category}">
+        <div class="s-item-header">
+          <div>
+            <div class="s-item-name">${r.item}</div>
+            <div class="s-item-cat">${r.category}</div>
+          </div>
+          <div style="text-align:right">
+            <div class="s-item-qty-main">${r.qty}</div>
+            <div class="s-item-qty-unit">${r.unit} needed</div>
+          </div>
+        </div>
+        <div class="s-item-breakdown">
+          <span>🔸 Primary: ${r.primary_qty} ${r.unit}</span>
+          <span>🔷 Upper: ${r.upper_qty} ${r.unit}</span>
+          ${r.history_avg !== null ? `<span>🕓 7-day avg: ${r.history_avg} ${r.unit}</span>` : ''}
+          ${r.min_enforced ? '<span style="color:var(--saffron);font-weight:600">📏 Min enforced</span>' : ''}
+        </div>
+        <div class="min-stock-bar">
+          <div class="min-stock-label">
+            <span>Stock: ${r.stock_available} ${r.unit} available</span>
+            <span>${Math.round(r.stock_pct)}% of need</span>
+          </div>
+          <div class="bar-track"><div class="bar-fill ${barClass}" style="width:${r.stock_pct}%"></div></div>
+        </div>
+        <div class="stock-alert ${alertClass}">${alertLabel}</div>
+      </div>
+    `;
+  }).join('');
+}
+
+function renderNormTable() {
+  const unitLabel = n => n.unit === 'g' ? 'g /100 children' : n.unit === 'L' ? 'mL /child' : 'g /child';
+  document.getElementById('normTableBody').innerHTML = POSHAN_NORMS_REF.map(n => `
+    <tr>
+      <td><strong>${n.name}</strong><br><span style="font-size:.76rem;color:var(--ink-soft)">${n.desc}</span></td>
+      <td>${n.primary} ${unitLabel(n)}</td>
+      <td>${n.upper} ${unitLabel(n)}</td>
+      <td>${n.unit}</td>
+      <td><strong>${n.minQty} ${n.unit}</strong></td>
+    </tr>
+  `).join('');
+}
+
+function filterCat(btn, cat) {
+  document.querySelectorAll('.cat-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  document.querySelectorAll('.suggestion-item').forEach(el => {
+    el.style.display = (cat === 'all' || el.dataset.cat === cat) ? '' : 'none';
+  });
+}
+
+/* ═══════════════════════════════════════════════════════ */
+/*  EXPORT                                                  */
+/* ═══════════════════════════════════════════════════════ */
+function exportSuggestions() {
+  if (!lastSuggestions.length) { showNotice('Generate a plan first.', 'warn'); return; }
+  const rows = [
+    ['Item', 'Category', 'Required Qty', 'Unit', 'Primary Qty', 'Upper Qty', '7-day Avg', 'Min Enforced', 'Stock Available', 'Stock Status'],
+    ...lastSuggestions.map(r => [
+      r.item, r.category, r.qty, r.unit, r.primary_qty, r.upper_qty,
+      r.history_avg ?? '', r.min_enforced ? 'Yes' : 'No', r.stock_available, r.stock_status
+    ])
+  ];
+  const csv = rows.map(r => r.map(v => `"${v}"`).join(',')).join('\n');
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'food_plan_' + new Date().toISOString().slice(0, 10) + '.csv';
+  a.click(); URL.revokeObjectURL(url);
+}
+
+/* ═══════════════════════════════════════════════════════ */
+/*  SEND TO ORDER CART (matches suggestions to real stock,  */
+/*  hands off to the staff dashboard cart via sessionStorage)*/
+/* ═══════════════════════════════════════════════════════ */
+async function sendToCart() {
+  if (!lastSuggestions.length) { showNotice('Generate a plan first.', 'warn'); return; }
+  try {
+    const res = await fetch('/api/inventory');
+    const items = await res.json();
+    const matched = [];
+    const missed = [];
+    lastSuggestions.forEach(s => {
+      const firstWord = s.item.split(' ')[0].toLowerCase();
+      const hit = items.find(i => i.item_name.toLowerCase().includes(firstWord));
+      if (hit) matched.push({ id: hit.id, qty: s.qty });
+      else missed.push(s.item);
+    });
+    if (!matched.length) {
+      showNotice('No matching inventory items found in current merchant stock.', 'error');
+      return;
+    }
+    const notes = `AI food plan — ${lastTotals.children} students (${lastTotals.primary_att} primary + ${lastTotals.upper_att} upper).`;
+    sessionStorage.setItem('plannerCart', JSON.stringify({ items: matched, notes }));
+    showNotice(
+      `${matched.length} item(s) sent to your order cart` +
+      (missed.length ? `, ${missed.length} not currently in stock (${missed.join(', ')})` : '') +
+      ' — opening dashboard…',
+      missed.length ? 'warn' : 'success'
+    );
+    setTimeout(() => { window.location.href = "{{ url_for('dashboard') }}"; }, 1300);
+  } catch (e) {
+    showNotice('Failed to prepare cart: ' + e.message, 'error');
+  }
+}
+
+/* ═══════════════════════════════════════════════════════ */
+/*  NOTICE HELPER                                          */
+/* ═══════════════════════════════════════════════════════ */
+function showNotice(msg, type = 'info') {
+  const el = document.createElement('div');
+  el.className = `flash-msg flash-${type}`;
+  el.innerHTML = msg;
+  el.style.cssText = 'position:fixed;bottom:1.5rem;right:1.5rem;z-index:999;max-width:380px;box-shadow:0 4px 20px rgba(0,0,0,.15)';
+  document.body.appendChild(el);
+  setTimeout(() => {
+    el.style.opacity = '0'; el.style.transition = 'opacity .4s';
+    setTimeout(() => el.remove(), 400);
+  }, 3500);
+}
+
+/* ── INIT ── */
+loadAttendanceHistory();
+</script>
+{% endblock %}
