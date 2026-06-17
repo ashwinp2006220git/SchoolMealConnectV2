@@ -1,10 +1,25 @@
 {% extends "base.html" %}
 {% block title %}Delivery Dashboard — SchoolMeal Connect{% endblock %}
+{% block extra_head %}
+<style>
+.job-card{
+  border:1.5px solid var(--border);border-radius:12px;padding:1.2rem;
+  display:flex;align-items:center;gap:1rem;flex-wrap:wrap;
+  background:var(--card);box-shadow:var(--shadow);
+  transition:border-color .2s,transform .2s,box-shadow .2s;
+}
+.job-card:hover{border-color:var(--leaf);transform:translateY(-2px);box-shadow:var(--shadow-md)}
+.job-id{font-family:'IBM Plex Mono',monospace;font-weight:700;font-size:1rem;color:var(--ink)}
+.job-meta{font-size:.8rem;color:var(--ink-soft);margin-top:.2rem;font-family:'IBM Plex Mono',monospace}
+.job-value{font-family:'Sora',sans-serif;font-size:1.15rem;font-weight:800;color:var(--saffron)}
+.job-value-label{font-family:'IBM Plex Mono',monospace;font-size:.68rem;color:var(--ink-soft);text-align:right;text-transform:uppercase;letter-spacing:.4px}
+</style>
+{% endblock %}
 {% block content %}
 <div class="page">
   <div class="page-header">
-    <h1>🚚 Delivery Dashboard</h1>
-    <p>View available jobs and manage your deliveries — {{ user.name }}</p>
+    <h1>🚚 Delivery <span>Dashboard</span></h1>
+    <p>jobs · status · {{ user.name }}</p>
   </div>
 
   <div class="stats-row">
@@ -12,34 +27,34 @@
       <div class="stat-value">{{ available|length }}</div>
       <div class="stat-label">Jobs Available</div>
     </div>
-    <div class="stat-card leaf">
+    <div class="stat-card saffron">
       <div class="stat-value">{{ my_jobs|selectattr('status','equalto','out_for_delivery')|list|length }}</div>
       <div class="stat-label">Active Deliveries</div>
     </div>
-    <div class="stat-card sky">
+    <div class="stat-card leaf">
       <div class="stat-value">{{ my_jobs|selectattr('status','equalto','delivered')|list|length }}</div>
       <div class="stat-label">Completed</div>
     </div>
   </div>
 
   <!-- Available Orders -->
-  <div class="card" style="margin-bottom:1.4rem">
+  <div class="card" style="margin-bottom:1.5rem">
     <div class="card-title"><span class="icon">📦</span> Available for Pickup</div>
     {% if available %}
-    <div style="display:grid;gap:.8rem">
+    <div style="display:flex;flex-direction:column;gap:.8rem;margin-top:.3rem">
       {% for o in available %}
-      <div style="border:1.5px solid var(--border);border-radius:10px;padding:1rem;display:flex;align-items:center;gap:1rem;flex-wrap:wrap">
-        <div style="flex:1;min-width:180px">
-          <div style="font-weight:700;font-size:.95rem">Order #{{ o.id }}</div>
-          <div style="font-size:.82rem;color:var(--ink-mid);margin-top:.2rem">Placed by: {{ o.staff_name }}</div>
-          <div style="font-size:.82rem;color:var(--ink-soft)">{{ o.created_at[:16] }}</div>
+      <div class="job-card">
+        <div style="flex:1;min-width:160px">
+          <div class="job-id">Order #{{ o.id }}</div>
+          <div class="job-meta">by {{ o.staff_name }}</div>
+          <div class="job-meta">{{ o.created_at[:16] }}</div>
         </div>
         <div style="text-align:right">
-          <div style="font-family:'Sora',sans-serif;font-size:1.1rem;font-weight:700;color:var(--saffron)">₹{{ "%.2f"|format(o.total_amount) }}</div>
-          <div style="font-size:.78rem;color:var(--ink-soft)">Order value</div>
+          <div class="job-value">₹{{ "%.2f"|format(o.total_amount) }}</div>
+          <div class="job-value-label">Order value</div>
         </div>
-        <div style="display:flex;gap:.5rem">
-          <a href="/order/{{ o.id }}" class="btn btn-ghost btn-sm">View Details</a>
+        <div style="display:flex;gap:.5rem;flex-shrink:0">
+          <a href="/order/{{ o.id }}" class="btn btn-ghost btn-sm">View</a>
           <form method="POST" action="/order/accept/{{ o.id }}">
             <button type="submit" class="btn btn-primary btn-sm">Accept Job</button>
           </form>
@@ -61,22 +76,24 @@
     {% if my_jobs %}
     <div class="table-wrap">
       <table>
-        <thead><tr><th>Order #</th><th>School Contact</th><th>Amount</th><th>Accepted At</th><th>Status</th><th>Action</th></tr></thead>
+        <thead><tr><th>Order #</th><th>School Contact</th><th>Amount</th><th>Date</th><th>Status</th><th>Action</th></tr></thead>
         <tbody>
         {% for o in my_jobs %}
           <tr>
-            <td><strong>#{{ o.id }}</strong></td>
+            <td><strong style="font-family:'IBM Plex Mono',monospace">#{{ o.id }}</strong></td>
             <td>{{ o.staff_name }}</td>
-            <td><strong>₹{{ "%.2f"|format(o.total_amount) }}</strong></td>
-            <td style="font-size:.82rem;color:var(--ink-mid)">{{ o.created_at[:16] }}</td>
+            <td><strong style="color:var(--saffron)">₹{{ "%.2f"|format(o.total_amount) }}</strong></td>
+            <td style="font-family:'IBM Plex Mono',monospace;font-size:.8rem;color:var(--ink-mid)">{{ o.created_at[:16] }}</td>
             <td><span class="badge badge-{{ o.status }}">{{ o.status.replace('_',' ').title() }}</span></td>
             <td>
-              <a href="/order/{{ o.id }}" class="btn btn-ghost btn-sm">Details</a>
-              {% if o.status == 'out_for_delivery' %}
-              <form method="POST" action="/order/deliver/{{ o.id }}" style="display:inline">
-                <button type="submit" class="btn btn-primary btn-sm">Mark Delivered</button>
-              </form>
-              {% endif %}
+              <div style="display:flex;gap:.4rem">
+                <a href="/order/{{ o.id }}" class="btn btn-ghost btn-sm">Details</a>
+                {% if o.status == 'out_for_delivery' %}
+                <form method="POST" action="/order/deliver/{{ o.id }}" style="display:inline">
+                  <button type="submit" class="btn btn-primary btn-sm">Mark Delivered</button>
+                </form>
+                {% endif %}
+              </div>
             </td>
           </tr>
         {% endfor %}

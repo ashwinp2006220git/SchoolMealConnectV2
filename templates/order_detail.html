@@ -1,67 +1,87 @@
 {% extends "base.html" %}
 {% block title %}Order #{{ order.id }} — SchoolMeal Connect{% endblock %}
+{% block extra_head %}
+<style>
+.progress-step{
+  display:flex;flex-direction:column;align-items:center;flex:1;
+}
+.progress-dot{
+  width:32px;height:32px;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;
+  font-size:.82rem;font-weight:700;border:2px solid;
+  transition:all .3s;
+}
+.progress-line{flex:1;height:3px;border-radius:2px;margin-bottom:18px;transition:background .3s}
+.progress-label{font-family:'IBM Plex Mono',monospace;font-size:.68rem;letter-spacing:.4px;margin-top:.4rem;text-align:center}
+</style>
+{% endblock %}
 {% block content %}
-<div class="page" style="max-width:680px">
+<div class="page" style="max-width:700px">
   <div style="margin-bottom:1.2rem">
     <a href="{{ url_for('dashboard') }}" class="btn btn-ghost btn-sm">← Back to Dashboard</a>
   </div>
-  <div class="card">
-    <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:1.4rem;flex-wrap:wrap;gap:.8rem">
+
+  <!-- Order Header Card -->
+  <div class="card" style="margin-bottom:1.2rem">
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:1.5rem;flex-wrap:wrap;gap:.8rem">
       <div>
-        <div style="font-family:'Sora',sans-serif;font-size:1.3rem;font-weight:700;color:var(--ink)">Order #{{ order.id }}</div>
-        <div style="font-size:.85rem;color:var(--ink-mid);margin-top:.2rem">Placed by {{ order.staff_name }} on {{ order.created_at[:16] }}</div>
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:.7rem;font-weight:600;text-transform:uppercase;letter-spacing:.8px;color:var(--ink-soft);margin-bottom:.3rem">Order Reference</div>
+        <div style="font-family:'Sora',sans-serif;font-size:1.5rem;font-weight:800;color:var(--ink)">#{{ order.id }}</div>
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:.8rem;color:var(--ink-soft);margin-top:.3rem">Placed by {{ order.staff_name }} · {{ order.created_at[:16] }}</div>
       </div>
-      <span class="badge badge-{{ order.status }}" style="font-size:.85rem;padding:.35rem .9rem">{{ order.status.replace('_',' ').title() }}</span>
+      <span class="badge badge-{{ order.status }}" style="font-size:.82rem;padding:.4rem 1rem">{{ order.status.replace('_',' ').title() }}</span>
     </div>
 
     {% if order.notes %}
-    <div style="background:#FFF8E1;border:1px solid #FFECB3;border-radius:8px;padding:.8rem 1rem;margin-bottom:1.2rem;font-size:.87rem;color:#795548">
-      📝 <strong>Notes:</strong> {{ order.notes }}
+    <div style="background:#FFF8E1;border:1px solid #FFE082;border-radius:9px;padding:.85rem 1rem;margin-bottom:1.3rem;font-size:.87rem;color:#795548;display:flex;gap:.6rem;align-items:flex-start">
+      <span style="flex-shrink:0">📝</span>
+      <div><strong>Notes:</strong> {{ order.notes }}</div>
     </div>
     {% endif %}
 
     <div class="section-label">Items Ordered</div>
-    <div class="table-wrap" style="margin-bottom:1.2rem">
+    <div class="table-wrap" style="margin-bottom:1.3rem">
       <table>
         <thead><tr><th>Item</th><th>Qty</th><th>Unit Price</th><th>Subtotal</th></tr></thead>
         <tbody>
         {% for item in items %}
           <tr>
             <td><strong>{{ item.item_name }}</strong></td>
-            <td>{{ item.quantity }} {{ item.unit }}</td>
-            <td>₹{{ "%.2f"|format(item.unit_price) }}</td>
-            <td><strong>₹{{ "%.2f"|format(item.quantity * item.unit_price) }}</strong></td>
+            <td style="font-family:'IBM Plex Mono',monospace;font-size:.85rem">{{ item.quantity }} {{ item.unit }}</td>
+            <td style="font-family:'IBM Plex Mono',monospace;font-size:.85rem">₹{{ "%.2f"|format(item.unit_price) }}</td>
+            <td><strong style="font-family:'IBM Plex Mono',monospace;color:var(--saffron)">₹{{ "%.2f"|format(item.quantity * item.unit_price) }}</strong></td>
           </tr>
         {% endfor %}
         </tbody>
       </table>
     </div>
-    <div style="text-align:right;padding-top:.5rem;border-top:2px solid var(--border)">
-      <span style="font-size:.85rem;color:var(--ink-mid)">Total Amount: </span>
-      <span style="font-family:'Sora',sans-serif;font-size:1.3rem;font-weight:700;color:var(--saffron)">₹{{ "%.2f"|format(order.total_amount) }}</span>
+    <div style="text-align:right;padding-top:.7rem;border-top:2px solid var(--border)">
+      <span style="font-family:'IBM Plex Mono',monospace;font-size:.82rem;color:var(--ink-mid)">Total Amount </span>
+      <span style="font-family:'Sora',sans-serif;font-size:1.45rem;font-weight:800;color:var(--saffron)">₹{{ "%.2f"|format(order.total_amount) }}</span>
     </div>
   </div>
 
-  <!-- Status progression -->
-  <div class="card" style="margin-top:1rem">
-    <div class="card-title"><span class="icon">📍</span> Order Status</div>
-    <div style="display:flex;align-items:center;gap:0;margin-top:.5rem">
-      {% set statuses = ['pending','confirmed','out_for_delivery','delivered'] %}
-      {% set idx = statuses.index(order.status) if order.status in statuses else 0 %}
+  <!-- Status Progress Card -->
+  <div class="card">
+    <div class="card-title"><span class="icon">📍</span> Order Progress</div>
+    {% set statuses = ['pending','confirmed','out_for_delivery','delivered'] %}
+    {% set idx = statuses.index(order.status) if order.status in statuses else 0 %}
+    <div style="display:flex;align-items:center;padding:.5rem 0">
       {% for s in statuses %}
       {% set i = loop.index0 %}
-      <div style="flex:1;text-align:center">
-        <div style="width:28px;height:28px;border-radius:50%;margin:0 auto;display:flex;align-items:center;justify-content:center;font-size:.8rem;font-weight:700;
-          background:{% if i <= idx %}var(--leaf){% else %}var(--border){% endif %};
-          color:{% if i <= idx %}#fff{% else %}var(--ink-soft){% endif %}">
+      {% set done = i <= idx %}
+      {% set current = i == idx %}
+      <div class="progress-step">
+        <div class="progress-dot"
+          style="background:{% if done %}var(--leaf){% else %}var(--card){% endif %};border-color:{% if done %}var(--leaf){% elif current %}var(--leaf){% else %}var(--border){% endif %};color:{% if done %}#fff{% else %}var(--ink-soft){% endif %}">
           {% if i < idx %}✓{% else %}{{ i+1 }}{% endif %}
         </div>
-        <div style="font-size:.72rem;color:{% if i==idx %}var(--leaf){% else %}var(--ink-soft){% endif %};font-weight:{% if i==idx %}700{% else %}400{% endif %};margin-top:.3rem">
+        <div class="progress-label" style="color:{% if current %}var(--leaf){% else %}var(--ink-soft){% endif %};font-weight:{% if current %}700{% else %}400{% endif %}">
           {{ s.replace('_',' ').title() }}
         </div>
       </div>
       {% if not loop.last %}
-      <div style="flex:0 0 20px;height:2px;background:{% if i < idx %}var(--leaf){% else %}var(--border){% endif %};margin-bottom:18px"></div>
+      <div class="progress-line" style="background:{% if i < idx %}var(--leaf){% else %}var(--border){% endif %}"></div>
       {% endif %}
       {% endfor %}
     </div>
