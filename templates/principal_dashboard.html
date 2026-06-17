@@ -7,6 +7,9 @@
 .modal{background:#fff;border-radius:14px;padding:1.8rem;width:100%;max-width:440px;box-shadow:0 8px 40px rgba(0,0,0,.2);max-height:90vh;overflow-y:auto}
 .modal h3{font-family:'Sora',sans-serif;font-size:1.05rem;font-weight:700;margin-bottom:1.2rem}
 .staff-note{font-size:.78rem;color:var(--ink-soft);background:#FFF8E1;border:1px solid #FFE082;border-radius:6px;padding:.5rem .8rem;margin-bottom:.9rem}
+.profile-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:1.2rem}
+.profile-field-label{font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--ink-soft);margin-bottom:.3rem}
+.profile-field-value{font-size:.93rem;color:var(--ink);font-weight:600}
 </style>
 {% endblock %}
 {% block content %}
@@ -14,6 +17,32 @@
   <div class="page-header">
     <h1>📊 Principal Dashboard</h1>
     <p>Live overview of all procurement activity — {{ user.name }}</p>
+  </div>
+
+  <!-- ── My Profile ───────────────────────────────────────────────────────── -->
+  <div class="card" style="margin-bottom:1.4rem">
+    <div class="card-title" style="display:flex;align-items:center;justify-content:space-between">
+      <span><span class="icon">👤</span> My Profile</span>
+      <button class="btn btn-primary btn-sm" onclick="document.getElementById('editProfileModal').style.display='flex'">Edit Profile</button>
+    </div>
+    <div class="profile-grid">
+      <div>
+        <div class="profile-field-label">Full Name</div>
+        <div class="profile-field-value">{{ user.name }}</div>
+      </div>
+      <div>
+        <div class="profile-field-label">Username</div>
+        <div class="profile-field-value" style="font-family:monospace">{{ user.username }}</div>
+      </div>
+      <div>
+        <div class="profile-field-label">Phone</div>
+        <div class="profile-field-value">{{ user.phone or '—' }}</div>
+      </div>
+      <div>
+        <div class="profile-field-label">Role</div>
+        <div class="profile-field-value">🏫 Principal</div>
+      </div>
+    </div>
   </div>
 
   <div class="stats-row">
@@ -158,6 +187,40 @@
       <div style="display:flex;gap:.7rem;margin-top:.5rem">
         <button type="submit" class="btn btn-primary" style="flex:1">Create Staff Account</button>
         <button type="button" class="btn btn-ghost" onclick="document.getElementById('addStaffModal').style.display='none'">Cancel</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ── Edit My Profile Modal ────────────────────────────────────────────────── -->
+<div id="editProfileModal" class="modal-overlay" style="display:none" onclick="if(event.target===this)this.style.display='none'">
+  <div class="modal">
+    <h3>✏️ Edit My Profile</h3>
+    <p style="font-size:.85rem;color:var(--ink-mid);margin-bottom:1rem">
+      Leave the password field blank to keep your current password.
+    </p>
+    <form method="POST" action="/principal/profile/update">
+      <div class="form-group">
+        <label>Full Name <span style="color:#EF5350">*</span></label>
+        <input type="text" name="name" value="{{ user.name }}" required>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Username <span style="color:#EF5350">*</span></label>
+          <input type="text" name="username" value="{{ user.username }}" required>
+        </div>
+        <div class="form-group">
+          <label>Phone <span style="color:#EF5350">*</span></label>
+          <input type="tel" name="phone" value="{{ user.phone or '' }}" placeholder="10-digit mobile number" pattern="[0-9]{10}" maxlength="10" required>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>New Password <span style="font-weight:400;color:var(--ink-soft)">(leave blank to keep current, min. 7 characters)</span></label>
+        <input type="password" name="password" placeholder="Enter new password or leave blank" minlength="7">
+      </div>
+      <div style="display:flex;gap:.7rem;margin-top:.5rem">
+        <button type="submit" class="btn btn-primary" style="flex:1">Save Changes</button>
+        <button type="button" class="btn btn-ghost" onclick="document.getElementById('editProfileModal').style.display='none'">Cancel</button>
       </div>
     </form>
   </div>

@@ -74,9 +74,15 @@ def register():
     if request.method == 'POST':
         username = request.form['username'].strip()
         password = request.form['password']
+        if len(password) < 7:
+            flash('Password must be at least 7 characters.')
+            return redirect(url_for('register'))
         role     = request.form['role']
         name     = request.form['name'].strip()
         phone    = request.form.get('phone', '').strip()
+        if not phone.isdigit() or len(phone) != 10:
+            flash('Phone number must be exactly 10 digits.')
+            return redirect(url_for('register'))
         # school_staff and admin accounts cannot be self-registered
         if role in ('admin', 'school_staff'):
             flash('That account type cannot be created via self-registration.')
@@ -159,6 +165,16 @@ def admin_user_add():
     username = request.form['username'].strip()
     role = request.form['role']
     name = request.form['name'].strip()
+    phone = request.form.get('phone', '').strip()
+    password = request.form['password']
+
+    if len(password) < 7:
+        flash('Password must be at least 7 characters.')
+        return redirect(url_for('dashboard'))
+
+    if not phone.isdigit() or len(phone) != 10:
+        flash('Phone number must be exactly 10 digits.')
+        return redirect(url_for('dashboard'))
     if db.execute('SELECT id FROM users WHERE username=?', (username,)).fetchone():
         flash('Username already taken.')
         return redirect(url_for('dashboard'))
@@ -242,6 +258,9 @@ def admin_user_edit(uid):
     new_username = request.form['username'].strip()
     new_name     = request.form['name'].strip()
     new_phone    = request.form.get('phone', '').strip()
+    if new_phone and (not new_phone.isdigit() or len(new_phone) != 10):
+        flash('Phone number must be exactly 10 digits.')
+        return redirect(url_for('dashboard'))
     new_role     = request.form['role']
     new_pw       = request.form.get('password', '').strip()
 
@@ -254,7 +273,7 @@ def admin_user_edit(uid):
         return redirect(url_for('dashboard'))
 
     if new_pw:
-        if len(new_pw) < 4:
+        if len(new_pw) < 7:
             flash('Password must be at least 4 characters.')
             return redirect(url_for('dashboard'))
         db.execute(
@@ -314,6 +333,7 @@ def admin_inventory_delete(item_id):
     guard = require_role('admin')
     if guard: return guard
     db = get_db()
+    db.execute('UPDATE order_items SET inventory_id=NULL WHERE inventory_id=?', (item_id,))
     db.execute('DELETE FROM inventory WHERE id=?', (item_id,))
     db.commit()
     flash('Inventory item removed.')
@@ -369,8 +389,11 @@ def principal_staff_add():
     if not username or not name or not password:
         flash('Name, username and password are all required.')
         return redirect(url_for('dashboard'))
-    if len(password) < 4:
+    if len(password) < 7:
         flash('Password must be at least 4 characters.')
+        return redirect(url_for('dashboard'))
+    if not phone.isdigit() or len(phone) != 10:
+        flash('Phone number must be exactly 10 digits.')
         return redirect(url_for('dashboard'))
     if db.execute('SELECT id FROM users WHERE username=?', (username,)).fetchone():
         flash('Username already taken.')
@@ -429,8 +452,11 @@ def staff_update_details(uid):
         return redirect(url_for('dashboard'))
 
     if new_pw:
-        if len(new_pw) < 4:
+        if len(new_pw) < 7:
             flash('Password must be at least 4 characters.')
+            return redirect(url_for('dashboard'))
+        if new_phone and (not new_phone.isdigit() or len(new_phone) != 10):
+            flash('Phone number must be exactly 10 digits.')
             return redirect(url_for('dashboard'))
         db.execute(
             'UPDATE users SET username=?, phone=?, password_hash=? WHERE id=?',
@@ -450,6 +476,64 @@ def staff_update_details(uid):
         session['user'] = dict(updated)
 
     flash('Staff details updated successfully.')
+    return redirect(url_for('dashboard'))
+
+# ─── Principal: own profile ────────────────────────────────────────────────────
+
+@app.route('/principal/profile/update', methods=['POST'])
+def principal_profile_update():
+    """
+    Principal can view & edit their own profile: name, username, phone,
+    and optionally password. Same restrictions as elsewhere in the app:
+      - phone must be exactly 10 digits (if provided)
+      - password must be at least 7 characters (if changing it)
+    """
+    guard = require_role('principal')
+    if guard: return guard
+    user = current_user()
+    db = get_db()
+
+    new_name     = request.form['name'].strip()
+    new_username = request.form['username'].strip()
+    new_phone    = request.form.get('phone', '').strip()
+    new_pw       = request.form.get('password', '').strip()
+
+    if not new_name or not new_username:
+        flash('Name and username cannot be empty.')
+        return redirect(url_for('dashboard'))
+
+    if not new_phone.isdigit() or len(new_phone) != 10:
+        flash('Phone number must be exactly 10 digits.')
+        return redirect(url_for('dashboard'))
+
+    # Username uniqueness check (excluding self)
+    clash = db.execute(
+        'SELECT id FROM users WHERE username=? AND id!=?', (new_username, user['id'])
+    ).fetchone()
+    if clash:
+        flash('That username is already taken by another user.')
+        return redirect(url_for('dashboard'))
+
+    if new_pw:
+        if len(new_pw) < 7:
+            flash('Password must be at least 7 characters.')
+            return redirect(url_for('dashboard'))
+        db.execute(
+            'UPDATE users SET name=?, username=?, phone=?, password_hash=? WHERE id=?',
+            (new_name, new_username, new_phone, hash_password(new_pw), user['id'])
+        )
+    else:
+        db.execute(
+            'UPDATE users SET name=?, username=?, phone=? WHERE id=?',
+            (new_name, new_username, new_phone, user['id'])
+        )
+    db.commit()
+
+    # Refresh the session so the new details show up immediately
+    updated = db.execute('SELECT * FROM users WHERE id=?', (user['id'],)).fetchone()
+    session['user'] = dict(updated)
+
+    flash('Your profile was updated successfully.')
     return redirect(url_for('dashboard'))
 
 # ─── Principal dashboard ───────────────────────────────────────────────────────
@@ -594,8 +678,17 @@ def inventory_delete(item_id):
     if guard: return guard
     user = current_user()
     db = get_db()
-    db.execute('DELETE FROM inventory WHERE id=? AND merchant_id=?', (item_id, user['id']))
-    db.commit()
+    item = db.execute(
+        'SELECT id FROM inventory WHERE id=? AND merchant_id=?', (item_id, user['id'])
+    ).fetchone()
+    if item:
+        # Past orders reference this item via inventory_id (FK). order_items
+        # already stores its own copy of item_name/qty/unit/price, so it's
+        # safe to null the link before deleting the inventory row.
+        db.execute('UPDATE order_items SET inventory_id=NULL WHERE inventory_id=?', (item_id,))
+        db.execute('DELETE FROM inventory WHERE id=?', (item_id,))
+        db.commit()
+        flash('Item removed from stock.')
     return redirect(url_for('dashboard'))
 
 # ─── Orders (School Staff) ────────────────────────────────────────────────────
@@ -620,8 +713,19 @@ def order_place():
             continue
         requested = float(item['qty'])
         available = float(inv['quantity'])
-        if requested <= 0:
-            errors.append(f"'{inv['item_name']}': quantity must be greater than zero.")
+        category = db.execute('''SELECT c.name FROM categories c JOIN inventory i ON c.id = i.category_id WHERE i.id = ?''',(inv['id'],)).fetchone()['name']
+        if category == 'Vegetables':
+            min_qty = 1      
+
+        elif category == 'Spices':
+            min_qty = 500    
+
+        else:
+            min_qty = 1
+        if requested < min_qty:
+                errors.append(
+                    f"{inv['item_name']}': minimum order quantity is "
+                    f"{min_qty} {inv['unit']}.")
         elif requested > available:
             errors.append(
                 f"'{inv['item_name']}': you requested {requested} {inv['unit']} "

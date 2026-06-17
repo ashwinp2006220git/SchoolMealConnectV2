@@ -48,7 +48,7 @@ input:focus,select:focus{outline:none;border-color:var(--leaf);box-shadow:0 0 0 
       </div>
       <div class="group">
         <label>Phone</label>
-        <input type="tel" name="phone" placeholder="Mobile number">
+        <input type="tel" name="phone" pattern="[0-9]{10}" maxlength="10" required>
       </div>
     </div>
     <div class="group">
@@ -63,7 +63,7 @@ input:focus,select:focus{outline:none;border-color:var(--leaf);box-shadow:0 0 0 
     <div class="row">
       <div class="group">
         <label>Password</label>
-        <input type="password" name="password" placeholder="Create password" required>
+        <input type="password" name="password" minlength="7" required>
       </div>
       <div class="group">
         <label>Confirm Password</label>
