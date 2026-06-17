@@ -2,31 +2,71 @@
 {% block title %}Admin Panel — SchoolMeal Connect{% endblock %}
 {% block extra_head %}
 <style>
-.tab-bar{display:flex;gap:.3rem;border-bottom:2px solid var(--border);margin-bottom:1.5rem;flex-wrap:wrap}
-.tab{padding:.6rem 1.2rem;border:none;background:none;font-family:inherit;font-size:.88rem;font-weight:600;color:var(--ink-soft);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-2px;transition:all .2s;border-radius:6px 6px 0 0}
-.tab:hover{color:var(--ink);background:var(--bg)}
-.tab.active{color:var(--leaf);border-bottom-color:var(--leaf);background:none}
+/* ── Tabs ───────────────────────────────────────────────── */
+.tab-bar{
+  display:flex;gap:.3rem;
+  border-bottom:2px solid var(--border);margin-bottom:1.8rem;flex-wrap:wrap;
+  background:var(--card);padding:.5rem .5rem 0;border-radius:var(--radius) var(--radius) 0 0;
+  border:1px solid var(--border);border-bottom:none;
+}
+.tab{
+  padding:.6rem 1.2rem;border:none;background:none;
+  font-family:'DM Sans',sans-serif;font-size:.85rem;font-weight:600;
+  color:var(--ink-soft);cursor:pointer;
+  border-bottom:3px solid transparent;margin-bottom:-1px;
+  transition:all .2s;border-radius:6px 6px 0 0;
+}
+.tab:hover{color:var(--ink);background:var(--cream)}
+.tab.active{color:var(--leaf);border-bottom-color:var(--leaf)}
 .tab-panel{display:none}.tab-panel.active{display:block}
-.role-tag{display:inline-block;padding:.18rem .55rem;border-radius:4px;font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.4px}
-.role-admin{background:#FCE4EC;color:#880E4F}
-.role-principal{background:#FFF3E0;color:#E65100}
-.role-school_staff{background:#E8F5E9;color:#1B5E20}
-.role-merchant{background:#E3F2FD;color:#0D47A1}
-.role-delivery{background:#EDE7F6;color:#4527A0}
-.status-dot{width:8px;height:8px;border-radius:50%;display:inline-block;margin-right:.4rem}
-.dot-active{background:#4CAF50}.dot-inactive{background:#EF5350}
-.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:300;display:flex;align-items:center;justify-content:center;padding:1rem}
-.modal{background:#fff;border-radius:14px;padding:1.8rem;width:100%;max-width:460px;box-shadow:0 8px 40px rgba(0,0,0,.2);max-height:90vh;overflow-y:auto}
-.modal h3{font-family:'Sora',sans-serif;font-size:1.1rem;font-weight:700;margin-bottom:1.2rem}
-.cat-row{display:flex;align-items:center;justify-content:space-between;padding:.55rem .8rem;border-radius:8px;border:1px solid var(--border);background:var(--card);margin-bottom:.45rem}
-.edit-section-label{font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--ink-soft);margin:.9rem 0 .5rem;padding-top:.9rem;border-top:1px solid var(--border)}
+
+/* ── Role Tags ─────────────────────────────────────────── */
+.role-tag{
+  display:inline-block;padding:.2rem .6rem;border-radius:20px;
+  font-family:'IBM Plex Mono',monospace;font-size:.68rem;font-weight:600;
+  text-transform:uppercase;letter-spacing:.4px;
+}
+.role-admin{background:#FCE4EC;color:#880E4F;border:1px solid #F48FB1}
+.role-principal{background:#FFF3E0;color:#E65100;border:1px solid #FFCC80}
+.role-school_staff{background:#E8F5E9;color:#1B5E20;border:1px solid #A5D6A7}
+.role-merchant{background:#E3F2FD;color:#0D47A1;border:1px solid #90CAF9}
+.role-delivery{background:#EDE7F6;color:#4527A0;border:1px solid #CE93D8}
+
+/* ── Status dot ─────────────────────────────────────────── */
+.status-dot{width:7px;height:7px;border-radius:50%;display:inline-block;margin-right:.4rem;flex-shrink:0}
+.dot-active{background:#4CAF50;box-shadow:0 0 0 2px rgba(76,175,80,.2)}
+.dot-inactive{background:#EF5350}
+
+/* ── Modals ─────────────────────────────────────────────── */
+.modal-overlay{
+  position:fixed;inset:0;background:rgba(21,19,31,.55);z-index:300;
+  display:flex;align-items:center;justify-content:center;padding:1rem;
+  backdrop-filter:blur(2px);
+}
+.modal{
+  background:var(--card);border-radius:16px;padding:2rem;width:100%;max-width:480px;
+  box-shadow:0 12px 48px rgba(0,0,0,.22);max-height:90vh;overflow-y:auto;
+  border:1px solid var(--border);
+  animation:modalIn .25s cubic-bezier(.2,.7,.2,1);
+}
+@keyframes modalIn{from{opacity:0;transform:translateY(12px) scale(.97)}to{opacity:1;transform:none}}
+.modal h3{font-family:'Sora',sans-serif;font-size:1.1rem;font-weight:700;margin-bottom:1.3rem;color:var(--ink)}
+.cat-row{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:.6rem .9rem;border-radius:9px;
+  border:1px solid var(--border);background:var(--cream);margin-bottom:.45rem;
+  transition:border-color .2s;
+}
+.cat-row:hover{border-color:var(--leaf)}
+.section-divider{font-family:'IBM Plex Mono',monospace;font-size:.68rem;font-weight:600;text-transform:uppercase;letter-spacing:.7px;color:var(--ink-soft);margin:.9rem 0 .5rem;padding-top:.9rem;border-top:1px solid var(--border)}
 </style>
 {% endblock %}
 {% block content %}
 <div class="page">
+  <!-- Page Header with grain texture -->
   <div class="page-header">
-    <h1>⚙️ Admin Panel</h1>
-    <p>Full system control — {{ user.name }}</p>
+    <h1>⚙️ Admin <span>Panel</span></h1>
+    <p>system · full control · {{ user.name }}</p>
   </div>
 
   <!-- Stats -->
@@ -69,13 +109,18 @@
         </thead>
         <tbody>
         {% for u in users %}
-          <tr style="{% if not u.is_active %}opacity:.55{% endif %}">
-            <td><span class="status-dot {% if u.is_active %}dot-active{% else %}dot-inactive{% endif %}"></span>{{ 'Active' if u.is_active else 'Disabled' }}</td>
+          <tr style="{% if not u.is_active %}opacity:.5{% endif %}">
+            <td>
+              <div style="display:flex;align-items:center">
+                <span class="status-dot {% if u.is_active %}dot-active{% else %}dot-inactive{% endif %}"></span>
+                <span style="font-size:.82rem;color:{% if u.is_active %}var(--leaf){% else %}#EF5350{% endif %};font-weight:600">{{ 'Active' if u.is_active else 'Disabled' }}</span>
+              </div>
+            </td>
             <td><strong>{{ u.name }}</strong></td>
-            <td style="font-family:monospace;font-size:.85rem">{{ u.username }}</td>
+            <td style="font-family:'IBM Plex Mono',monospace;font-size:.82rem;color:var(--ink-mid)">{{ u.username }}</td>
             <td><span class="role-tag role-{{ u.role }}">{{ u.role.replace('_',' ') }}</span></td>
-            <td style="font-size:.83rem;color:var(--ink-mid)">{{ u.phone or '—' }}</td>
-            <td style="font-size:.8rem;color:var(--ink-soft)">{{ u.created_at[:10] }}</td>
+            <td style="font-size:.83rem;color:var(--ink-soft)">{{ u.phone or '—' }}</td>
+            <td style="font-size:.78rem;color:var(--ink-soft);font-family:'IBM Plex Mono',monospace">{{ u.created_at[:10] }}</td>
             <td>
               {% if u.role != 'admin' %}
               <div style="display:flex;gap:.4rem;flex-wrap:wrap">
@@ -84,7 +129,7 @@
                   Edit
                 </button>
                 <form method="POST" action="/admin/user/toggle/{{ u.id }}" style="display:inline">
-                  <button type="submit" class="btn btn-sm {% if u.is_active %}btn-ghost{% else %}btn-primary{% endif %}">
+                  <button type="submit" class="btn btn-sm {% if u.is_active %}btn-danger{% else %}btn-primary{% endif %}">
                     {{ 'Disable' if u.is_active else 'Enable' }}
                   </button>
                 </form>
@@ -94,7 +139,7 @@
                 </form>
               </div>
               {% else %}
-              <span style="font-size:.78rem;color:var(--ink-soft)">— admin —</span>
+              <span style="font-family:'IBM Plex Mono',monospace;font-size:.72rem;color:var(--ink-soft)">— protected —</span>
               {% endif %}
             </td>
           </tr>
@@ -114,13 +159,13 @@
         <tbody>
         {% for o in orders %}
           <tr>
-            <td><strong>#{{ o.id }}</strong></td>
+            <td><strong style="font-family:'IBM Plex Mono',monospace">#{{ o.id }}</strong></td>
             <td>{{ o.staff_name }}</td>
-            <td style="font-size:.83rem;color:var(--ink-mid)">{{ o.created_at[:16] }}</td>
-            <td><strong>₹{{ "%.2f"|format(o.total_amount) }}</strong></td>
+            <td style="font-family:'IBM Plex Mono',monospace;font-size:.8rem;color:var(--ink-mid)">{{ o.created_at[:16] }}</td>
+            <td><strong style="color:var(--saffron)">₹{{ "%.2f"|format(o.total_amount) }}</strong></td>
             <td>
               <form method="POST" action="/admin/order/status/{{ o.id }}" style="display:inline">
-                <select name="status" onchange="this.form.submit()" style="padding:.25rem .5rem;border-radius:6px;font-size:.8rem;border:1.5px solid var(--border)">
+                <select name="status" onchange="this.form.submit()" style="padding:.3rem .6rem;border-radius:7px;font-size:.78rem;border:1.5px solid var(--border);font-family:'IBM Plex Mono',monospace;background:var(--cream);cursor:pointer">
                   {% for s in ['pending','confirmed','out_for_delivery','delivered','cancelled'] %}
                   <option value="{{ s }}" {% if o.status==s %}selected{% endif %}>{{ s.replace('_',' ').title() }}</option>
                   {% endfor %}
@@ -156,13 +201,13 @@
           <tr>
             <td><strong>{{ item.item_name }}</strong></td>
             <td><span class="chip chip-{{ item.category }}">{{ item.category_icon }} {{ item.category }}</span></td>
-            <td style="font-size:.85rem">{{ item.merchant_name }}</td>
+            <td style="font-size:.84rem;color:var(--ink-mid)">{{ item.merchant_name }}</td>
             <td>
-              <span style="{% if item.quantity == 0 %}color:#EF5350;font-weight:700{% elif item.quantity < 5 %}color:var(--turmeric);font-weight:600{% endif %}">
+              <span style="font-family:'IBM Plex Mono',monospace;font-weight:600;{% if item.quantity == 0 %}color:#EF5350{% elif item.quantity < 5 %}color:var(--turmeric){% else %}color:var(--leaf){% endif %}">
                 {{ item.quantity }} {{ item.unit }}
               </span>
             </td>
-            <td>₹{{ "%.2f"|format(item.price_per_unit) }}/{{ item.unit }}</td>
+            <td style="font-family:'IBM Plex Mono',monospace;font-size:.83rem">₹{{ "%.2f"|format(item.price_per_unit) }}/{{ item.unit }}</td>
             <td>
               <form method="POST" action="/admin/inventory/delete/{{ item.id }}"
                     onsubmit="return confirm('Remove {{ item.item_name }} from inventory?')">
@@ -185,13 +230,15 @@
       <button class="btn btn-primary" onclick="document.getElementById('addCatModal').style.display='flex'">+ Add Category</button>
     </div>
     {% if categories %}
-    <div style="max-width:520px">
+    <div style="max-width:540px;display:flex;flex-direction:column;gap:.4rem">
       {% for cat in categories %}
       <div class="cat-row">
-        <div style="display:flex;align-items:center;gap:.7rem">
-          <span style="font-size:1.4rem">{{ cat.icon }}</span>
-          <span style="font-weight:600;font-size:.93rem">{{ cat.name }}</span>
-          <span class="chip chip-{{ cat.name }}" style="font-size:.72rem">{{ cat.name }}</span>
+        <div style="display:flex;align-items:center;gap:.8rem">
+          <span style="font-size:1.5rem;line-height:1">{{ cat.icon }}</span>
+          <div>
+            <span style="font-weight:700;font-size:.93rem">{{ cat.name }}</span>
+            <span class="chip chip-{{ cat.name }}" style="margin-left:.5rem;font-size:.66rem">{{ cat.name }}</span>
+          </div>
         </div>
         <form method="POST" action="/admin/category/delete/{{ cat.id }}"
               onsubmit="return confirm('Delete category \'{{ cat.name }}\'? Only possible if no items use it.')">
@@ -206,7 +253,7 @@
   </div>
 </div>
 
-<!-- ── Add User Modal ─────────────────────────────────────────────────────────── -->
+<!-- ── Add User Modal ─────────────────────────────────────── -->
 <div id="addUserModal" class="modal-overlay" style="display:none" onclick="if(event.target===this)this.style.display='none'">
   <div class="modal">
     <h3>+ Add New User</h3>
@@ -222,7 +269,7 @@
         </div>
         <div class="form-group">
           <label>Phone</label>
-          <input type="tel" name="phone" placeholder="mobile number">
+          <input type="tel" name="phone" placeholder="10-digit number">
         </div>
       </div>
       <div class="form-group">
@@ -247,16 +294,13 @@
   </div>
 </div>
 
-<!-- ── Edit User Modal (Admin — all fields) ────────────────────────────────────── -->
+<!-- ── Edit User Modal ────────────────────────────────────── -->
 <div id="editUserModal" class="modal-overlay" style="display:none" onclick="if(event.target===this)this.style.display='none'">
   <div class="modal">
     <h3>✏️ Edit User</h3>
-    <p style="font-size:.83rem;color:var(--ink-mid);margin-bottom:1rem">
-      All fields are editable. Leave password blank to keep the current one.
-    </p>
+    <p style="font-size:.83rem;color:var(--ink-soft);margin-bottom:1.1rem">Leave password blank to keep the current one.</p>
     <form method="POST" id="editUserForm">
-
-      <div class="edit-section-label">Identity</div>
+      <div class="section-divider">Identity</div>
       <div class="form-row">
         <div class="form-group">
           <label>Full Name <span style="color:#EF5350">*</span></label>
@@ -267,8 +311,7 @@
           <input type="tel" name="phone" id="euPhone" placeholder="Mobile number">
         </div>
       </div>
-
-      <div class="edit-section-label">Login credentials</div>
+      <div class="section-divider">Login Credentials</div>
       <div class="form-group">
         <label>Username <span style="color:#EF5350">*</span></label>
         <input type="text" name="username" id="euUsername" required>
@@ -277,8 +320,7 @@
         <label>New Password <span style="font-weight:400;color:var(--ink-soft)">(leave blank to keep current)</span></label>
         <input type="password" name="password" placeholder="Enter new password or leave blank" minlength="4">
       </div>
-
-      <div class="edit-section-label">Role</div>
+      <div class="section-divider">Role</div>
       <div class="form-group">
         <label>Role <span style="color:#EF5350">*</span></label>
         <select name="role" id="euRole" required>
@@ -288,7 +330,6 @@
           <option value="delivery">🚚 Delivery</option>
         </select>
       </div>
-
       <div style="display:flex;gap:.7rem;margin-top:1rem">
         <button type="submit" class="btn btn-primary" style="flex:1">Save All Changes</button>
         <button type="button" class="btn btn-ghost" onclick="document.getElementById('editUserModal').style.display='none'">Cancel</button>
@@ -297,7 +338,7 @@
   </div>
 </div>
 
-<!-- ── Add Category Modal ─────────────────────────────────────────────────────── -->
+<!-- ── Add Category Modal ─────────────────────────────────── -->
 <div id="addCatModal" class="modal-overlay" style="display:none" onclick="if(event.target===this)this.style.display='none'">
   <div class="modal">
     <h3>🏷️ Add New Category</h3>
@@ -312,10 +353,8 @@
           <input type="text" name="icon" placeholder="e.g. 🥛" maxlength="4">
         </div>
       </div>
-      <p style="font-size:.8rem;color:var(--ink-soft);margin-top:-.4rem;margin-bottom:.8rem">
-        The icon will appear alongside the category name across all dashboards.
-      </p>
-      <div style="display:flex;gap:.7rem;margin-top:.5rem">
+      <p style="font-size:.8rem;color:var(--ink-soft);margin-top:-.3rem;margin-bottom:.9rem">The icon appears alongside the category name across all dashboards.</p>
+      <div style="display:flex;gap:.7rem">
         <button type="submit" class="btn btn-primary" style="flex:1">Add Category</button>
         <button type="button" class="btn btn-ghost" onclick="document.getElementById('addCatModal').style.display='none'">Cancel</button>
       </div>
@@ -330,13 +369,11 @@ function switchTab(name, btn) {
   document.getElementById('tab-' + name).classList.add('active');
   btn.classList.add('active');
 }
-
 function openEditUserModal(uid, name, username, phone, role) {
   document.getElementById('euName').value     = name;
   document.getElementById('euUsername').value = username;
   document.getElementById('euPhone').value    = phone;
   document.getElementById('euRole').value     = role;
-  // Clear any previously entered password
   document.querySelector('#editUserForm input[name="password"]').value = '';
   document.getElementById('editUserForm').action = '/admin/user/edit/' + uid;
   document.getElementById('editUserModal').style.display = 'flex';
