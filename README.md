@@ -90,6 +90,10 @@ In this project,I worked on the Inventory and Orders Module.My work included add
 
 Through this project, I gained practical experience in Flask, SQLite, HTML, CSS, and JavaScript. I also learned how inventory management and order processing systems work, and how data is stored and retrieved from a database.
 
+I also developed the AI Food Planner page, which calculates ingredient requirements based on student attendance and PM POSHAN guidelines. The system analyzes attendance trends, checks stock availability, generates procurement suggestions, and provides AI-generated insights to support food planning.
+
+Through this feature, I gained experience in AI integration, data visualization with Chart.js, API usage, and building dynamic web applications using Flask and JavaScript.
+
 ### Aaron Philip Paeton:
 
 In this project,I worked on monitoring and delivery parts.This includes features such as viewing all orders ,updating delivery status,monitoring suppliers and a chart analysing total amount.I also developed dashboards for principal and delivery users 
